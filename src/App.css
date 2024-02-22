@@ -1,0 +1,29 @@
+.menu {
+  background-color: #f8f9fa;
+  border-radius: 5px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-around;
+  margin-left: 9%;
+}
+
+.menu .item {
+  color: #007bff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.menu .item.active {
+  color: #28a745; 
+}
+
+.knowledge {
+  font-size: 18px;
+  font-weight: bold;
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 9px;
+  background-color: #d2f7fd;
+}

@@ -1,0 +1,76 @@
+.login-container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    margin-top: 100px;
+}
+
+.form-control {
+    margin-bottom: 20px;
+}
+
+.form-control label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.form-control input {
+    width: 95%;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.form-control input[type="text"],
+.form-control input[type="password"] {
+    height: 40px;
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: auto;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: #cce5ff;
+}
+
+.password-input {
+    display: flex;
+    align-items: center;
+    /* Öğeleri dikey olarak hizalar */
+}
+
+.password-input input {
+    flex: 1;
+    /* Input alanının genişliği tüm boş alanı kaplar */
+    padding: 0px 40px 0px 10px;
+    margin-right: -20px;
+}
+
+.password-input .icon {
+    cursor: pointer;
+    position: relative;
+    right: 10px;
+    top: 50%;
+    font-size: 20px;
+}
