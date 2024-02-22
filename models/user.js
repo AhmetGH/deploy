@@ -1,12 +1,25 @@
 const mongoose = require('../db/db.js')
 
-var Schema = mongoose.Schema 
 
-var userSchema = new Schema({
-    email : String,
-    password : String
-})
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  password: { type: String, required: true },
+});
+ 
 
-var user = mongoose.model("user" , userSchema)
+const User = mongoose.model('User', userSchema);
 
-module.exports = user;
+const newUser = new User({
+  email: 'a@mail.com',
+  password: '123abc',
+});
+ 
+newUser.save()
+  .then(() => {
+    console.log('Kullanıcı başarıyla eklendi.');
+  })
+  .catch((err) => {
+    console.error('Kullanıcı eklenirken hata oluştu:', err);
+  });
+
+  module.exports = User;
