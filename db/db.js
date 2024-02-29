@@ -1,7 +1,8 @@
 var mongoose = require("mongoose")
 
 
-var connection = "mongodb+srv://ahmetgocmen07:9Jzm8XKwMxHKr8m1@ahmet.shuruci.mongodb.net/?retryWrites=true&w=majority&appName=ahmet"
+var connection = "mongodb://localhost:27017/knowledgedb"
+
 
 mongoose.connect(connection)
     .then(() => {
