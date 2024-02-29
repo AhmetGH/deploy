@@ -10,12 +10,9 @@ const PORT = 3000
 const Usermodel = require('./models/user')
 const Rolemodel = require('./models/role')
 const Teammodel = require('./models/team')
-const NoteModel = require('./models/note')
-
-
+const NoteModel = require('./models/note.js')
 
 require("dotenv").config();
-
 
 const authMiddleware = require('./middlewares.js');
 
@@ -23,8 +20,6 @@ app.listen(
   PORT,
   () => console.log(`calisti http://localhost:${PORT}`)
 )
-
-
 
 app.post('/team/:teamName/member', async (req, res) => {
   const teamName = req.params.teamName;
@@ -79,19 +74,18 @@ app.get('/team/:teamName', async (req, res) => {
 
   try {
       
-    console.log(2)
+
         const team = await Teammodel.findOne({ teamName })
             .populate({
                 path: 'members',
-                select: 'email',
+                select: 'email fullname',
+                
                 populate: { path: 'role', select: 'name' } // İç içe populate işlemi ile rollerin sadece adını alırız
             })
             .select('-_id members') // İstenmeyen alanları seçmemek için kullanılır
             .exec();
 
-            console.log(4)
 
-      console.log(4)
       if (!team) {
           return res.status(404).json({ message: 'Takım bulunamadı' });
       }
@@ -165,6 +159,32 @@ app.post('/team', async (req, res) => {
     res.status(500).json({ mesaj: 'Takım oluşturulurken hata oluştu', hata: error.message });
   }
 });
+
+
+app.put('/members/:id', async (req, res) => {
+  const memberId = req.params.id;
+  const updatedMember = req.body; // Düzenlenmiş üye bilgisi
+  console.log(memberId)
+  console.log(updatedMember)
+
+  try {
+    // Üye bilgisini güncelle
+    const member = await Usermodel.findByIdAndUpdate(memberId, updatedMember, { new: true });
+
+    if (!member) {
+      return res.status(404).json({ message: 'Üye bulunamadı' });
+    }
+
+    res.status(200).json({ message: 'Üye başarıyla güncellendi', member });
+  } catch (error) {
+    res.status(500).json({ message: 'Üye güncellenirken bir hata oluştu', error: error.message });
+  }
+});
+
+
+
+
+
 
 app.post("/roles", async (req, res) => {
   try{
@@ -368,6 +388,13 @@ app.post("/refresh", async (req, res) => {
   });
 })
 
-app.get("/auth", authMiddleware, (req, res) => {
+app.get("/auth", authMiddleware ,(req, res) => {
   return res.sendStatus(200);
+});
+
+app.get("/rol", authMiddleware, async(req, res) => {
+  console.log(req.user)
+  const user = await Usermodel.findById(req.user.id).populate('role');
+  console.log(user.role.name)
+  return res.json(user.role.name);
 });
