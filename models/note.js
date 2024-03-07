@@ -1,8 +1,6 @@
 const mongoose = require('../db/db.js')
-
-
-
 const Schema = mongoose.Schema;
+
 
 const noteSchema = new Schema({
     noteName: {
@@ -14,7 +12,14 @@ const noteSchema = new Schema({
         type: String,
         required: false,
         unique: false
-    }
+    },
+    isPublic: {
+        type: Boolean,
+        required: false,
+        unique: false
+    },
+
+    members: [{ type: Schema.Types.ObjectId, ref: 'User', required: false }]
 });
 
 const Note = mongoose.model('Note', noteSchema);

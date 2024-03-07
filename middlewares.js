@@ -13,7 +13,7 @@ const authMiddleware=(req,res,next)=>{
             //console.log(err);
             return res.status(401).json("Token geçerli değil");
         }
-        req.user=user;
+        req.user=user; //şunu user id tutalım clean code için
         next();
     })
 
