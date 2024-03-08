@@ -70,7 +70,7 @@ app.post("/login", async (req, res) => {
       email: email,
       password: password,
     }).populate("role", "name");
-    
+
     if (!userFound) {
       return res.status(401).json({ message: "Kullanıcı bulunamadı veya bilgiler geçersiz." });
     }
@@ -83,13 +83,13 @@ app.post("/login", async (req, res) => {
       const accessToken = jwt.sign(
         { id: userFound.id },
         process.env.ACCESS_TOKEN_SECRET,
-        { expiresIn: "100s" }
+        { expiresIn: "1000s" }
       );
 
       const refreshToken = jwt.sign(
         { id: userFound.id },
         process.env.REFRESH_TOKEN_SECRET,
-        { expiresIn: "300s" }
+        { expiresIn: "1500s" }
       );
 
       return res.status(200).json({ accessToken, refreshToken, role });
@@ -142,13 +142,13 @@ app.post("/refresh", async (req, res) => {
     const accessToken = jwt.sign(
       { id: data.id },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "100s" }
+      { expiresIn: "1000s" }
     );
 
     const refreshToken = jwt.sign(
       { id: data.id },
       process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: "300s" }
+      { expiresIn: "1500s" }
     );
 
     console.log("yeni refreshToken : " + refreshToken + "\n");

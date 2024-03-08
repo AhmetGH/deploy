@@ -24,9 +24,7 @@ router.get("/", authMiddleware, async (req, res) => {
 
 router.get("/quill", authMiddleware, async (req, res) => {
   try {
-    console.log(1111111111)
     const allnotes = await Notemodel.find({}).sort({ _id: -1 });
-    console.log(allnotes)
     res.status(200).json({ allnotes })
   } catch (error) {
     return res.status(400).json(error);
@@ -35,11 +33,10 @@ router.get("/quill", authMiddleware, async (req, res) => {
 
 router.get("/quill/:noteName", authMiddleware, async (req, res) => {
   const noteName = req.params.noteName;
-  console.log(req.params.noteName)
+  //console.log(req.params.noteName)
   try {
-
     const not = await Notemodel.findOne({ noteName });
-    console.log(not)
+    //console.log(not)
     res.status(200).json({ not })
   } catch (error) {
     return res.status(400).json(error);
@@ -50,9 +47,8 @@ router.get("/quill/:noteName", authMiddleware, async (req, res) => {
 
 router.get("/main", async (req, res) => {
   try {
-    console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     const publicnotes = await Notemodel.find({ isPublic: true }).sort({ _id: -1 });
-    console.log(publicnotes)
+    //console.log(publicnotes)
     res.json({ publicnotes })
   } catch (error) {
     return res.status(400).json(error);
@@ -78,7 +74,7 @@ router.get("/:noteName", async (req, res) => {
   }
 });
 router.post('/', authMiddleware, async (req, res) => {
-  console.log(req.body)
+  //console.log(req.body)
   const { noteName, description, isPublic } = req.body;
   //console.log(description)
   //const descriptionString = JSON.stringify(description);
