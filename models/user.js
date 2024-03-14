@@ -14,7 +14,7 @@ const userSchema = new Schema({
     },
     password: {
         type: String,
-        required: true
+        required: false
     },
     role: {
         type: Schema.Types.ObjectId,
@@ -35,7 +35,17 @@ const userSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'Team',
         required: false
-    }]
+    }],
+    isActive: {
+        type: Boolean,
+        default : false
+        
+    },
+    emailToken :{
+        type : String,
+        required : false,
+        default : undefined
+    }
 
 });
 

@@ -13,7 +13,7 @@ module.exports.postRole = async (req, res) => {
   
       res.status(201).json(savedRole);
     } catch (error) {
-        console.error('Rol ekleme hatası:', erfror);
+        console.error('Rol ekleme hatası:', error);
         res.status(500).json({ error: 'Rol eklenemedi' });
     }
   }
@@ -28,6 +28,29 @@ module.exports.postRole = async (req, res) => {
     } catch (error) {
         console.error('Roller getirme hatası:', error);
         res.status(500).json({ error: 'Roller getirilemedi' });
+    }
+  }
+
+  module.exports.getAdmin = async (req, res) => {
+    try {
+        // Tüm rolleri MongoDB'den getir
+        const role = await Rolemodel.findOne({name:"admin"});
+        
+        return role._id
+    } catch (error) {
+        console.error('Roller getirme hatası:', error);
+        
+    }
+  }
+  module.exports.getUser = async () => {
+    try {
+        // Tüm rolleri MongoDB'den getir
+        const role = await Rolemodel.findOne({name:"user"});
+        
+        return role._id
+    } catch (error) {
+        console.error('Roller getirme hatası:', error);
+       
     }
   }
 
