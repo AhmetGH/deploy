@@ -82,7 +82,7 @@ router.get('/verify', async (req, res) => {
       return res.status(400).send('Geçersiz token.');
     }
 
-    res.redirect(`deployfe.vercel.app/auth/reset-password/${token}`);
+    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
   } catch (error) {
     res.status(500).send('Bir hata oluştu.');
   }
@@ -110,7 +110,7 @@ router.post("/set-password", async (req, res) => {
     user.isActive = true
     await user.save();
 
-    res.redirect('deployfe.vercel.app/login');
+    res.redirect('https://deployfe-ahmetghs-projects.vercel.app/login');
   } catch (error) {
     res.status(500).send({ error });
   }
@@ -149,7 +149,7 @@ router.get('/verify-forget', async (req, res) => {
     if (!user) {
       return res.status(400).send('Geçersiz token.');
     }
-    res.redirect(`deployfe.vercel.app/auth/reset-password/${token}`);
+    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
   } catch (error) {
     res.status(500).send(error);
   }
