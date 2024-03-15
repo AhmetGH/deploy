@@ -213,14 +213,14 @@ app.post("/auth/user/register/:teamName", async (req, res) => {
 
 
     if (!req.body.hasOwnProperty('role')) {
-      console.log("sa")
+      //console.log("sa")
       var newUser = new Usermodel({ email: email, role: getRole._id });
       await newUser.save();
     }
     else {
-      console.log("sa")
+      //console.log("sa")
       var roleObject = await Rolemodel.findOne({ name: role });
-      var newUser = new Usermodel({ email, role: roleObject._id });
+      var newUser = new Usermodel({ email: email, role: roleObject._id });
       await newUser.save();
     }
     console.log("aas")
