@@ -7,6 +7,13 @@ const bcrypt = require("bcrypt")
 
 
 
+
+const sendEmail = require("./utils/sendEmail")
+
+const teamModel = require("./models/team")
+
+
+
 //middlewares
 app.use(cors());
 app.use(express.json());
@@ -71,7 +78,7 @@ app.get("/users", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const userFound = await Usermodel.findOne({email}).populate("role", "name");
+    const userFound = await Usermodel.findOne({ email }).populate("role", "name");
     if (!userFound) {
       return res.status(401).json({ message: "Kullanıcı bulunamadı veya bilgiler geçersiz." });
     }
@@ -79,7 +86,7 @@ app.post("/login", async (req, res) => {
     //await bcrypt.compare(password, userFound.password)
 
     if (await bcrypt.compare(password, userFound.password)) {
-     
+
       const accessToken = jwt.sign(
         { id: userFound.id },
         process.env.ACCESS_TOKEN_SECRET,
@@ -141,4 +148,223 @@ app.get("/rol", authMiddleware, async (req, res) => {
 
   return res.json(user.role.name);
 });
+
+
+
+
+
+app.post("/auth/admin/register", async (req, res) => {
+  try {
+
+    const { email, password } = req.body;
+
+    const hasUser = await userModel.findOne({ email: email });
+
+    if (hasUser) {
+      return res.status(400).json("User already exists.");
+    }
+    const getRole = await roleModel.findOne({ name: "admin" });
+    console.log(getRole._id)
+
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+
+    const newUser = new userModel({
+      email: email,
+      password: hashedPassword,
+      role: getRole._id
+    });
+
+    const savedUser = await newUser.save();
+
+    return res.status(200).json(savedUser);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+app.post("/auth/user/register/:teamName", async (req, res) => {
+
+  try {
+    console.log("user")
+    const teamName = req.params.teamName;
+
+
+
+    const { email, role } = req.body;
+    console.log("req.body", req.body.newMember)
+
+    const user = await Usermodel.findOne({ email })
+    const getRole = await Rolemodel.findOne({ name: "user" });
+
+    if (user)
+      return res.status(400).send("user already exists")
+
+    // const team = await Teammodel.findOne({ teamName });
+    // if (!team) {
+    //   return res.status(404).json({ message: "Takım bulunamadı" });
+    // }
+    console.log("ls")
+    console.log(req.body.hasOwnProperty('role'))
+    console.log(getRole._id)
+    console.log(email)
+
+
+    if (!req.body.hasOwnProperty('role')) {
+      console.log("sa")
+      var newUser = new Usermodel({ email: email, role: getRole._id });
+      await newUser.save();
+    }
+    else {
+      console.log("sa")
+      var roleObject = await Rolemodel.findOne({ name: role });
+      var newUser = new Usermodel({ email, role: roleObject._id });
+      await newUser.save();
+    }
+    console.log("aas")
+
+    console.log(newUser._id)
+
+    const token = jwt.sign({ userId: newUser._id }, process.env.EMAIL_SECRET, { expiresIn: "15d" });
+
+    newUser.emailToken = token;
+    await newUser.save();
+
+    const url = `http://localhost:3000/auth/verify?token=${token}&teamName=${teamName}`;
+    await sendEmail(email, "Şifrenizi belirlemek için bağlantıya tıklayınız.", url);
+
+    res.sendStatus(200);
+
+  } catch (error) {
+    res.status(500).send('Bir hata oluştu.');
+  }
+
+});
+
+
+app.get('/auth/verify', async (req, res) => {
+  try {
+    console.log("verify ")
+    const { token, teamName } = req.query;
+    console.log("token", token)
+
+    console.log("teamName", teamName)
+
+
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+    const user = await Usermodel.findOne({ _id: decoded.userId, emailToken: token });
+    if (!user) {
+      return res.status(400).send('Geçersiz token.');
+    }
+    const team = await teamModel.findOne({ teamName });
+
+    user.team.push(team._id);
+    await user.save();
+
+    team.members.push(user._id);
+    await team.save();
+
+
+    res.redirect(`http://localhost:4000/auth/reset-password/${token}`);
+  } catch (error) {
+    res.status(500).send('Bir hata oluştu.');
+  }
+});
+
+
+
+app.post("/auth/set-password", async (req, res) => {
+
+  try {
+    const { password, token } = req.body;
+    console.log("pass");
+    console.log(password);
+    console.log(token);
+
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+    const user = await Usermodel.findOne({ _id: decoded.userId, emailToken: token });
+    if (!user) {
+      return res.status(400).send('Geçersiz token.');
+    }
+    console.log(user)
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.emailToken = undefined;
+    user.isActive = true
+    await user.save();
+
+    res.redirect('http://localhost:4000/login');
+  } catch (error) {
+    res.status(500).send({ error });
+  }
+});
+
+
+app.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const User = await Usermodel.findOne({ email });
+    if (!User)
+      return res.send({ message_header: "Geçersiz mail adresi!", message: "Girmiş olduğunuz e-mail adresinin sistemde kaydı bulunmamaktadır!" });
+
+    const token = jwt.sign({ userId: User._id }, process.env.EMAIL_SECRET, { expiresIn: "15d" });
+
+    const Url = `http://localhost:3000/auth/verify-forget?token=${token}`
+
+    await sendEmail(email, "Şifre sıfırlama", Url)
+
+    res.status(200).json({ message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' });
+    //işlem tamamlandı sayfasına yönlendir
+  } catch (error) {
+    res.status(500).json(error);
+
+  }
+})
+
+app.get('/auth/verify-forget', async (req, res) => {
+  try {
+
+    const token = req.query.token;
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+
+
+    const user = await Usermodel.findOne({ _id: decoded.userId });
+    if (!user) {
+      return res.status(400).send('Geçersiz token.');
+    }
+    res.redirect(`http://localhost:4000/auth/reset-password/${token}`);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+});
+
+
+
+
+app.post("/auth/reset-password", async (req, res) => {
+
+  try {
+    const { password, token } = req.body;
+
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET)
+    const user = await Usermodel.findOne({ _id: decoded.userId });
+    if (!user) {
+      return res.status(400).send('Geçersiz token.');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.emailToken = undefined;
+    user.isActive = true
+    await user.save();
+
+    res.status(200).json("Şifre başarıyla sıfırlandı");
+  } catch (error) {
+    console.error(error);
+    res.status(500).json(error);
+  }
+
+})
 
