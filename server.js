@@ -232,7 +232,7 @@ app.post("/auth/user/register/:teamName", async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `http://localhost:3000/auth/verify?token=${token}&teamName=${teamName}`;
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}&teamName=${teamName}`;
     await sendEmail(email, "Şifrenizi belirlemek için bağlantıya tıklayınız.", url);
 
     res.sendStatus(200);
@@ -267,7 +267,7 @@ app.get('/auth/verify', async (req, res) => {
     await team.save();
 
 
-    res.redirect(`http://localhost:4000/auth/reset-password/${token}`);
+    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
   } catch (error) {
     res.status(500).send('Bir hata oluştu.');
   }
@@ -295,7 +295,7 @@ app.post("/auth/set-password", async (req, res) => {
     user.isActive = true
     await user.save();
 
-    res.redirect('http://localhost:4000/login');
+    res.redirect('https://deployfe-ahmetghs-projects.vercel.app/login');
   } catch (error) {
     res.status(500).send({ error });
   }
@@ -311,7 +311,7 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     const token = jwt.sign({ userId: User._id }, process.env.EMAIL_SECRET, { expiresIn: "15d" });
 
-    const Url = `http://localhost:3000/auth/verify-forget?token=${token}`
+    const Url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify-forget?token=${token}`
 
     await sendEmail(email, "Şifre sıfırlama", Url)
 
@@ -334,7 +334,7 @@ app.get('/auth/verify-forget', async (req, res) => {
     if (!user) {
       return res.status(400).send('Geçersiz token.');
     }
-    res.redirect(`http://localhost:4000/auth/reset-password/${token}`);
+    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
   } catch (error) {
     res.status(500).send(error);
   }
