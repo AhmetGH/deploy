@@ -31,28 +31,6 @@ module.exports.postRole = async (req, res) => {
     }
   }
 
-  module.exports.getAdmin = async (req, res) => {
-    try {
-        // Tüm rolleri MongoDB'den getir
-        const role = await Rolemodel.findOne({name:"admin"});
-        
-        return role._id
-    } catch (error) {
-        console.error('Roller getirme hatası:', error);
-        
-    }
-  }
-  module.exports.getUser = async () => {
-    try {
-        // Tüm rolleri MongoDB'den getir
-        const role = await Rolemodel.findOne({name:"user"});
-        
-        return role._id
-    } catch (error) {
-        console.error('Roller getirme hatası:', error);
-       
-    }
-  }
 
   
   

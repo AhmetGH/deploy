@@ -20,81 +20,103 @@ const sendEmail = async (to, subject, url) => {
 
   const htmlEmail = `
   <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HR HUB</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #F5F5F5;
-            color: #000;
-            margin: 0;
-            padding: 0;
-        }
-        header {
-            background-color: #000000;
-            color: white;
-            padding: 10px 20px;
-            text-align: left;
-        }
-        section {
-            background-color: #F5F5F5;
-            padding: 20px;
-        }
-        button {
-            background-color: #000;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .footer {
-            background-color: #fff;
-            color: black;
-            padding: 10px;
-            text-align: center;
-            font-size: 12px;
-        }
-    </style>
-</head>
-<body>
-    <header style="padding-left: 50px;">
-        <h1 style="margin-bottom: 0px;">HR HUB</h1>
-        <h2 style="margin-top: 0px;">SUBDOMAIN &gt; B</h2>
-
-    </header>
-    <section style="padding-left: 50px;">
-        <div style="padding-top: 60px; padding-bottom: 30px;" >
-            <img src="https://crm-test-z2p9.onrender.com/kilit.jpeg">
-            
-        </div>
-        <div style="margin-top:40px ;">
-            <h2>${subject}</h2>
-        </div>
-        <div style="margin-bottom: 40px;">${content}</div>
-        <div style="margin-bottom:7%;">
-            <a href="${url}" style="display:inline-block; padding: 10px 20px; background-color: #000000; color: #ffffff; border-radius: 10px; text-decoration: none;">Şifre oluştur </a>
-
-        </div>
-       
-        <div style="margin-bottom: 9%;">Excepteur sint occaecat cupidatat, Non proident</div>
-    </section>
-    <div style="padding-left: 50px; display: block; clear: both;">
-        <div style="float: left;">
-            Reprehenderit in voluptate velit esse <b>HR HUB</b>
-        </div>
-        <div style="float: right;">
-            Lorem and Ipsum &bull; Dolor Sit Amet
-        </div>
-    <div style="clear: both;"></div>
-</div>
-
-</body>
-</html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>HR HUB</title>
+      <style>
+          body {
+              font-family: Arial, sans-serif;
+              background-color: #F5F5F5;
+              color: #000;
+              margin: 0;
+              padding: 0;
+          }
+   
+          section {
+              background-color: #F5F5F5;
+              padding: 20px;
+          }
+          button {
+              background-color: #000;
+              color: white;
+              border: none;
+              padding: 10px 20px;
+              text-align: center;
+              text-decoration: none;
+              display: inline-block;
+          }
+          .footer {
+              background-color: #fff;
+              color: black;
+              padding: 10px;
+              text-align: center;
+              font-size: 12px;
+          }
+          table {
+              width: 800px;
+              border-collapse: collapse;
+              background-color: #F5F5F5;
+          }
+          th, td {
+             
+              text-align: left;
+         
+              
+          }
+          th {
+              background-color: #000;
+              color: white;
+          }
+      </style>
+  </head>
+  <body>
+      <table>
+          <tr>
+              <td colspan="2" style="background-color: #000000; color: #ffffff;height: 140px; padding-left: 86px;">
+                  <h1 style="margin-bottom: 0px;">HR HUB</h1>
+                  <h2 style="margin-top: 0px;">SUBDOMAIN &gt; B</h2>
+              </td>
+          </tr>
+          <tr>
+              <td colspan="2" style="padding-left: 86px; padding-top: 86px;">
+                  <img src="https://crm-test-z2p9.onrender.com/kilit.jpeg" alt="HR HUB Logo">
+              </td>
+          </tr>
+          <tr >
+              <td  colspan="2" style="padding-left: 86px; padding-top: 30px;"><h2>${subject}</h2></td>
+          </tr>
+          <tr>
+      
+              <td  colspan="2" style="padding-left: 86px;"> ipsum, dolor sit amet</td>
+          </tr>
+          <tr>        
+              <td colspan="2"  style="padding-left: 86px; padding-top: 50px;">
+                  <a href="${url}" style="display:inline-block; padding: 10px 40px 10px 40px; background-color: #0057D9; color: #ffffff; border-radius: 8px; text-decoration: none;">Şifre oluştur</a>
+              </td>
+          </tr>
+          <tr>
+              <td colspan="2"  style="padding-left: 86px; padding-top: 86px;padding-bottom: 106px; font-family:SF Pro Text; font-size: 16px; font-style: normal;font-weight: 400;">
+                  Excepteur sint occaecat cupidatat, Non proident
+              </td>
+          </tr>
+          <tr>
+              <td colspan="2" style="background-color: #ffffff; font-family:SF Pro Text;
+              font-size: 14px;
+              font-style: normal;
+              font-weight: 400;
+              line-height: 22px; 
+              padding-top:10px ;">
+                  <div style="float: left;">Reprehenderit in voluptate velit esse <b>HR HUB</b></div>
+                  <div style="float: right;">Lorem and Ipsum &bull; Dolor Sit Amet</div>
+                  <div style="clear: both;"></div>
+              </td>
+          </tr>
+      </table>
+  </body>
+  </html>
+  
 
     `;
 

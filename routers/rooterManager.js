@@ -8,9 +8,6 @@ const settingsRoute = require("./settingsRoute.js")
 const authRoute =  require("./authRoute.js")
 const topicRoute = require("./topicRoute.js")
 
-
-
-
 module.exports = function root(app) {
 
     app.use("/team", teamRoute)

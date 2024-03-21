@@ -79,11 +79,13 @@ module.exports.postTeam =  async (req, res) => {
 };
 
 module.exports.postTeamMember =  async (req, res) => {
+
+
+
   try {
     const teamName = req.params.teamName;
     const { email, role } = req.body;
-
-    // Takımı bul
+  
     const team = await Teammodel.findOne({ teamName });
     if (!team) {
       return res.status(404).json({ message: "Takım bulunamadı" });
@@ -94,8 +96,7 @@ module.exports.postTeamMember =  async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "Kullanıcı bulunamadı" });
     }
-
-    // Rolü bul
+    //rolu bul
     const roleObject = await Rolemodel.findOne({ name: role });
     if (!roleObject) {
       return res.status(404).json({ message: "Rol bulunamadı" });

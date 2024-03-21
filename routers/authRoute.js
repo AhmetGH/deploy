@@ -1,16 +1,20 @@
-const express = require("express")
-const router = express.Router();
+var express = require("express");
+var router = express.Router();
 
-const jwt = require("jsonwebtoken")
-const bcrypt = require("bcrypt")
-const userModel = require("../models/user")
-const sendEmail = require("../utils/sendEmail")
-const roleModel = require("../models/role")
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const userModel = require("../models/user");
+const sendEmail = require("../utils/sendEmail");
+const roleModel = require("../models/role");
+const teamModel = require("../models/team");
+const authMiddleware = require("../middlewares");
 
+router.get("/", authMiddleware, (req, res) => {
+  return res.sendStatus(200);
+});
 
 router.post("/admin/register", async (req, res) => {
   try {
-
     const { email, password } = req.body;
 
     const hasUser = await userModel.findOne({ email: email });
@@ -19,16 +23,13 @@ router.post("/admin/register", async (req, res) => {
       return res.status(400).json("User already exists.");
     }
     const getRole = await roleModel.findOne({ name: "admin" });
-    console.log(getRole._id)
-
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
 
     const newUser = new userModel({
       email: email,
       password: hashedPassword,
-      role: getRole._id
+      role: getRole._id,
     });
 
     const savedUser = await newUser.save();
@@ -40,139 +41,148 @@ router.post("/admin/register", async (req, res) => {
   }
 });
 
-router.post("/register", async (req, res) => {
-
+router.post("/user/register/:teamName", async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await userModel.findOne({ email })
+    console.log("user");
+    const teamName = req.params.teamName;
+
+    const { email, role } = req.body;
+
+    console.log("req.body", req.body.newMember);
+
+    const user = await userModel.findOne({ email });
+    if (user) {
+      console.log("users exist");
+      return res.status(400).send("Kullanıcı zaten var");
+    }
+
     const getRole = await roleModel.findOne({ name: "user" });
+    if (!getRole) return res.status(400).send("Kullanıcı rolü bulunamadı");
 
-    if (user)
-      return res.status(400).send("user already exists")
+    let newUser;
 
-    const newUser = new userModel({ email, role: getRole._id });
-    await newUser.save();
+    if (!role) {
+      console.log(1);
+      newUser = new userModel({ email: email, role: getRole._id });
+    } else {
+      console.log(2);
+      var roleObject = await roleModel.findOne({ name: role });
+      newUser = new userModel({ email: email, role: roleObject._id });
+    }
 
-    const token = jwt.sign({ userId: newUser._id }, process.env.EMAIL_SECRET, { expiresIn: "15d" });
+    console.log(newUser);
+
+    const token = jwt.sign({ userId: newUser._id }, process.env.EMAIL_SECRET, {
+      expiresIn: "15d",
+    });
 
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
-    await sendEmail(email, "Şifrenizi belirlemek için bağlantıya tıklayınız.", url);
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}&teamName=${teamName}`;
+    await sendEmail(
+      email,
+      "Şifrenizi belirlemek için bağlantıya tıklayınız.",
+      url
+    );
 
     res.sendStatus(200);
-
   } catch (error) {
-    res.status(500).send('Bir hata oluştu.');
-  }
-
-});
-
-
-router.get('/verify', async (req, res) => {
-  try {
-    console.log("verify ")
-    const { token } = req.query;
-
-    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
-
-    const user = await userModel.findOne({ _id: decoded.userId, emailToken: token });
-    if (!user) {
-      return res.status(400).send('Geçersiz token.');
-    }
-
-    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
-  } catch (error) {
-    res.status(500).send('Bir hata oluştu.');
+    console.error(error);
+    res.status(500).send("Bir hata oluştu.");
   }
 });
 
-
-
-router.post("/set-password", async (req, res) => {
-
+router.get("/verify", async (req, res) => {
   try {
-    const { password, token } = req.body;
-    console.log("pass");
-    console.log(password);
-    console.log(token);
+    console.log("verify ");
+    const { token, teamName } = req.query;
+
+    console.log("teamName", teamName);
 
     const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
-    const user = await userModel.findOne({ _id: decoded.userId, emailToken: token });
+    const user = await userModel.findOne({
+      _id: decoded.userId,
+      emailToken: token,
+    });
     if (!user) {
-      return res.status(400).send('Geçersiz token.');
+      return res.status(400).send("Geçersiz token.");
     }
-    console.log(user)
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user.password = hashedPassword;
-    user.emailToken = undefined;
-    user.isActive = true
+    const team = await teamModel.findOne({ teamName });
+
+    user.team.push(team._id);
     await user.save();
 
-    res.redirect('https://deployfe-ahmetghs-projects.vercel.app/login');
+    team.members.push(user._id);
+    await team.save();
+
+    res.redirect(
+      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`
+    );
   } catch (error) {
-    res.status(500).send({ error });
+    res.status(500).send("Bir hata oluştu.");
   }
 });
-
 
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    const User = await userModel.findOne({ email });
-    if (!User)
-      return res.send({ message_header: "Geçersiz mail adresi!", message: "Girmiş olduğunuz e-mail adresinin sistemde kaydı bulunmamaktadır!" });
+    const user = await userModel.findOne({ email });
+    if (!user)
+      return res.send({
+        message_header: "Geçersiz mail adresi!",
+        message:
+          "Girmiş olduğunuz e-mail adresinin sistemde kaydı bulunmamaktadır!",
+      });
 
-    const token = jwt.sign({ userId: User._id }, process.env.EMAIL_SECRET, { expiresIn: "15d" });
+    const token = jwt.sign({ userId: user._id }, process.env.EMAIL_SECRET, {
+      expiresIn: "15d",
+    });
 
-    const Url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify-forget?token=${token}`
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify-forget?token=${token}`;
 
-    await sendEmail(email, "Şifre sıfırlama", Url)
+    await sendEmail(email, "Şifre sıfırlama", url);
 
-    res.status(200).json({ message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' });
+    res.status(200).json({
+      message: "Şifre sıfırlama bağlantısı e-posta adresinize gönderildi",
+    });
     //işlem tamamlandı sayfasına yönlendir
   } catch (error) {
     res.status(500).json(error);
-
   }
-})
+});
 
-router.get('/verify-forget', async (req, res) => {
+router.get("/verify-forget", async (req, res) => {
   try {
-
     const token = req.query.token;
     const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
 
-
     const user = await userModel.findOne({ _id: decoded.userId });
     if (!user) {
-      return res.status(400).send('Geçersiz token.');
+      return res.status(400).send("Geçersiz token.");
     }
-    res.redirect(`https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`);
+    res.redirect(
+      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`
+    );
   } catch (error) {
     res.status(500).send(error);
   }
 });
 
-
-
-
 router.post("/reset-password", async (req, res) => {
-
   try {
     const { password, token } = req.body;
 
-    const decoded = jwt.verify(token, process.env.EMAIL_SECRET)
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
     const user = await userModel.findOne({ _id: decoded.userId });
     if (!user) {
-      return res.status(400).send('Geçersiz token.');
+      return res.status(400).send("Geçersiz token.");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     user.password = hashedPassword;
     user.emailToken = undefined;
-    user.isActive = true
+    user.isActive = true;
     await user.save();
 
     res.status(200).json("Şifre başarıyla sıfırlandı");
@@ -180,6 +190,6 @@ router.post("/reset-password", async (req, res) => {
     console.error(error);
     res.status(500).json(error);
   }
+});
 
-})
-module.exports = router
+module.exports = router;
