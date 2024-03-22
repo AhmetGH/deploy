@@ -3,23 +3,31 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const { Client } = require("@elastic/elasticsearch");
 
-// Elasticsearch istemcisini oluşturma
-const esClient = new Client({ node: "http://localhost:9200" });
+const esClient = new Client({
+  node: "https://ab24abf3e2874367921a56ecd22ea2f9.us-central1.gcp.cloud.es.io:443",
+  auth: {
+    apiKey: {
+      id: "DWCpYY4BbGoGyYtIMll2", // Replace with your actual API key ID
+      api_key: "dScJ7yw3Qvij0WYDJ829Mw", // Replace with your actual API key secret
+    },
+  },
+});
 
 // MongoDB schema ve model
 const Note = require("../models/note");
 const Team = require("../models/team");
 const About = require("../models/about");
+const Topic = require("../models/topic");
 
 // Middleware'ler
 router.use(express.json());
 
 router.post("/transferData", async (req, res) => {
   try {
-    // Elasticsearch indeksini oluştur
+    // Elasticsearch indeksini oluştur (Eğer daha önce oluşturulmadıysa)
     await esClient.indices.create(
       {
-        index: "data",
+        index: "kbase",
         body: {
           mappings: {
             properties: {
@@ -71,6 +79,14 @@ router.post("/transferData", async (req, res) => {
                   },
                 },
               },
+              topicName: {
+                type: "text",
+                fields: {
+                  suggest: {
+                    type: "completion",
+                  },
+                },
+              },
             },
           },
         },
@@ -84,10 +100,10 @@ router.post("/transferData", async (req, res) => {
       // members dizisini kullanarak fullname'ları birleştir
 
       const jsonString = JSON.stringify(note._id);
-      const encodedid = btoa(jsonString).toString("base64");
+      const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "data",
+        index: "kbase",
         body: {
           noteName: note.noteName,
           noteDescription: note.description,
@@ -96,11 +112,30 @@ router.post("/transferData", async (req, res) => {
       });
     }
 
+    const topics = await Topic.find().populate('children').lean();
+
+    for (const topic of topics) {
+      const childrenTopicNames = topic.children.map((child) => child.topicName);
+      console.log(childrenTopicNames)
+      const jsonString = JSON.stringify(topic._id);
+      const encodedid = Buffer.from(jsonString).toString("base64");
+    
+      await esClient.index({
+        index: "kbase",
+        body: {
+          topicName: topic.topicName,
+          children: childrenTopicNames,
+          topicId: encodedid,
+        },
+      });
+    }
+    
+
     // MongoDB'den takım verilerini al ve Elasticsearch'e aktar
     const teams = await Team.find().lean();
     for (const team of teams) {
       await esClient.index({
-        index: "data",
+        index: "kbase",
         body: {
           teamName: team.teamName,
           teamDescription: team.description,
@@ -111,7 +146,7 @@ router.post("/transferData", async (req, res) => {
     const abouts = await About.find().lean();
     for (const about of abouts) {
       await esClient.index({
-        index: "data",
+        index: "kbase",
         body: {
           aboutName: about.aboutName,
           aboutDescription: about.description,
@@ -133,7 +168,7 @@ router.get("/autocomplete", async (req, res) => {
 
     // Elasticsearch sorgusu oluştur
     const result = await esClient.search({
-      index: "data",
+      index: "kbase",
       body: {
         query: {
           bool: {
@@ -156,6 +191,9 @@ router.get("/autocomplete", async (req, res) => {
               {
                 wildcard: { aboutName: `${query}*` },
               },
+              {
+                wildcard: { topicName: `${query}*` },
+              },
             ],
           },
         },
@@ -170,6 +208,9 @@ router.get("/autocomplete", async (req, res) => {
       teamDescription: hit._source.teamDescription,
       noteDescription: hit._source.noteDescription,
       aboutName: hit._source.aboutName,
+      topicName: hit._source.topicName,
+      children: hit._source.children,
+      topicId : hit._source.topicId,
       aboutDescription: hit._source.aboutDescription,
     }));
 
