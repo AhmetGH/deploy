@@ -1,12 +1,9 @@
-var express = require("express")
-var router = express.Router()
-var roleController = require("../controllers/roleController")
+var express = require("express");
+var router = express.Router();
+var roleController = require("../controllers/roleController");
 
+router.post("/", roleController.createRole);
 
-router.post("/", roleController.postRole )
-  
+router.get("/", roleController.allRoles);
 
-router.get('/', roleController.getRoles)
-
-module.exports = router
-  
+module.exports = router;
