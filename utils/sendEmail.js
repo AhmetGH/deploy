@@ -1,22 +1,19 @@
-const nodemailer = require('nodemailer');
-
+const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, url) => {
-
   const transporter = nodemailer.createTransport({
-    service:"gmail",
+    service: "gmail",
     auth: {
       user: "erencpp@gmail.com",
-      pass: "uzqd mxyr tcuu ktlm"
-    }
+      pass: "uzqd mxyr tcuu ktlm",
+    },
   });
-  var content= ""
+  var content = "";
 
-  if(subject === "Şifre sıfırlama")
-    content = "Şifrenizi sıfırlamak için butona basınız!"
-  else
-    content = "Sisteme kayıt oldunuz şimdi şifrenizi oluşturun!"
-  console.log(content)
+  if (subject === "Şifre sıfırlama")
+    content = "Şifrenizi sıfırlamak için butona basınız!";
+  else content = "Sisteme kayıt oldunuz şimdi şifrenizi oluşturun!";
+  console.log(content);
 
   const htmlEmail = `
   <!DOCTYPE html>
@@ -81,7 +78,7 @@ const sendEmail = async (to, subject, url) => {
           </tr>
           <tr>
               <td colspan="2" style="padding-left: 86px; padding-top: 86px;">
-                  <img src="https://crm-test-z2p9.onrender.com/kilit.jpeg" alt="HR HUB Logo">
+                  <img src="https://ahmetgh-deploy-deploy.onrender.com/Group.jpeg" alt="HR HUB Logo">
               </td>
           </tr>
           <tr >
@@ -121,12 +118,11 @@ const sendEmail = async (to, subject, url) => {
     `;
 
   const mailOptions = {
-    from: 'erencpp@gmail.com', 
-    to: to, 
-    subject: subject, 
-    html: htmlEmail
+    from: "erencpp@gmail.com",
+    to: to,
+    subject: subject,
+    html: htmlEmail,
   };
-
 
   try {
     await transporter.sendMail(mailOptions);

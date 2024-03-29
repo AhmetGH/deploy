@@ -36,10 +36,9 @@ module.exports.adminRegister = async (req, res) => {
   }
 };
 
+//user register without team
 module.exports.userRegister = async (req, res) => {
   try {
-    const teamName = req.params.teamName;
-
     const { email, role } = req.body;
 
     const user = await userModel.findOne({ email });
@@ -66,7 +65,64 @@ module.exports.userRegister = async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}&teamName=${teamName}`;
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
+    await sendEmail(
+      email,
+      "Şifrenizi belirlemek için bağlantıya tıklayınız.",
+      url
+    );
+
+    res.sendStatus(200);
+  } catch (error) {
+    res.status(500).json(error);
+  }
+};
+
+module.exports.userRegisterForTeam = async (req, res) => {
+  try {
+    const teamName = req.params.teamName;
+
+    const { email, role } = req.body;
+
+    const user = await userModel.findOne({ email });
+    if (user) {
+      return res.status(400).send("Kullanıcı zaten var");
+    }
+
+    const getRole = await roleModel.findOne({ name: "user" });
+    if (!getRole) return res.status(400).send("Kullanıcı rolü bulunamadı");
+
+    const team = await teamModel.findOne({ teamName });
+    if (!team) return res.status(400).send("Takım bulunamadı");
+
+    let newUser;
+
+    if (!role) {
+      newUser = new userModel({
+        email: email,
+        role: getRole._id,
+        team: team._id,
+      });
+    } else {
+      var roleObject = await roleModel.findOne({ name: role });
+      newUser = new userModel({
+        email: email,
+        role: roleObject._id,
+        team: team._id,
+      });
+    }
+
+    team.members.push(newUser._id);
+    await team.save();
+
+    const token = jwt.sign({ userId: newUser._id }, process.env.EMAIL_SECRET, {
+      expiresIn: "15d",
+    });
+
+    newUser.emailToken = token;
+    await newUser.save();
+
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
     await sendEmail(
       email,
       "Şifrenizi belirlemek için bağlantıya tıklayınız.",
@@ -81,7 +137,7 @@ module.exports.userRegister = async (req, res) => {
 
 module.exports.verify = async (req, res) => {
   try {
-    const { token, teamName } = req.query;
+    const { token } = req.query;
 
     const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
     const user = await userModel.findOne({
@@ -91,16 +147,9 @@ module.exports.verify = async (req, res) => {
     if (!user) {
       return res.status(400).send("Geçersiz token.");
     }
-    const team = await teamModel.findOne({ teamName });
-
-    user.team.push(team._id);
-    await user.save();
-
-    team.members.push(user._id);
-    await team.save();
 
     res.redirect(
-      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`
+      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}?hasUser=false`
     );
   } catch (error) {
     res.status(500).json(error);
@@ -165,6 +214,28 @@ module.exports.resetPassword = async (req, res) => {
       return res
         .status(401)
         .json({ message: "Şifreniz eski şifrenizle aynı!" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.emailToken = undefined;
+    user.isActive = true;
+    await user.save();
+
+    res.status(200).json("Şifre başarıyla sıfırlandı");
+  } catch (error) {
+    res.status(500).json(error);
+  }
+};
+
+module.exports.createPassword = async (req, res) => {
+  try {
+    const { password, token } = req.body;
+
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+    const user = await userModel.findOne({ _id: decoded.userId });
+    if (!user) {
+      return res.status(400).send("Geçersiz token.");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);

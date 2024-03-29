@@ -7,7 +7,8 @@ router.get("/", authMiddleware, authController.verifyToken);
 
 router.post("/admin/register", authController.adminRegister);
 
-router.post("/user/register/:teamName", authController.userRegister);
+router.post("/user/register/:teamName", authController.userRegisterForTeam);
+router.post("/user/register", authController.userRegister);
 
 router.get("/verify", authController.verify);
 
@@ -16,6 +17,7 @@ router.post("/forgot-password", authController.forgotPassword);
 router.get("/verify-forget", authController.verifyForget);
 
 router.post("/reset-password", authController.resetPassword);
+router.post("/create-password", authController.createPassword);
 
 router.get("/role", authMiddleware, authController.getAuthRole);
 

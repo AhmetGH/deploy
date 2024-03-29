@@ -142,7 +142,7 @@ module.exports.getTeamMatesWithPagination = async function (req, res) {
 };
 
 
-module.exports.getTeams = async (req, res) => {
+module.exports.getTeamsWithPagination = async (req, res) => {
   try {
     const searchTerm = req.query.searchTerm || "";
     const pageNumber = parseInt(req.query.pageNumber) || 1;
@@ -226,16 +226,16 @@ module.exports.getTeams = async (req, res) => {
 
 
 
-// module.exports.getTeams = async (req, res) => {
-//   try {
-//     const teams = await Teammodel.find();
-//     res.status(200).json(teams);
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ message: "Takımlar alınmadı", error: error.message });
-//   }
-// };
+module.exports.getTeams = async (req, res) => {
+  try {
+    const teams = await Teammodel.find();
+    res.status(200).json(teams);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Takımlar alınmadı", error: error.message });
+  }
+};
 
 module.exports.postTeam = async (req, res) => {
   const { teamName, description, userEmail, userRol } = req.body;
