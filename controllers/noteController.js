@@ -13,13 +13,13 @@ module.exports.getNotesToHome = async (req, res) => {
     const allNotesData = allnotes.map((note) => {
       const jsonString = JSON.stringify(note._id);
       const encodedid = btoa(jsonString).toString("base64");
-
       return {
         noteName: note.noteName,
         noteId: encodedid,
+        noteDetails: note.description,
       };
     });
-    res.json({ allnotes: allNotesData, member: member });
+    res.json({ allNotes: allNotesData, member: member });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -72,25 +72,31 @@ module.exports.createNote = async (req, res) => {
   const userId = req.user.id;
   try {
     const newNote = new Notemodel({
-      noteName: "untitled",
+      noteName: "Untitled",
       members: userId,
       isPublic: false,
       description: "",
     });
     const savedNote = await newNote.save();
+    console.log("savedNote:", savedNote);
 
-    return res.status(200).json({
-      message: "Not başarıyla güncellendi",
-      noteId: savedNote._id,
+    const jsonString = JSON.stringify(savedNote._id);
+    const encodedid = btoa(jsonString).toString("base64");
+
+    const notesData = {
       noteName: savedNote.noteName,
-    });
+      noteId: encodedid,
+    };
+    console.log("notesData:", notesData);
+
+    return res.status(200).json({ notesData });
   } catch (error) {
     return res.status(500).json(error);
   }
 };
 
 module.exports.deleteNote = async (req, res) => {
-  const noteId = req.params.noteId;
+  const noteId = idDecoder(req.params.noteId);
   const noteName = req.params.noteName;
 
   try {
@@ -100,9 +106,9 @@ module.exports.deleteNote = async (req, res) => {
       return res.status(404).json({ message: "Not bulunamadı" });
     }
 
-    if (note.noteName !== noteName) {
-      return res.status(400).json({ message: "Note ID ve isim eşleşmiyor" });
-    }
+    // if (note.noteName !== noteName) {
+    //   return res.status(400).json({ message: "Note ID ve isim eşleşmiyor" });
+    // }
 
     await note.deleteOne();
 

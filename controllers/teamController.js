@@ -2,30 +2,30 @@ const Usermodel = require("../models/user");
 const Rolemodel = require("../models/role");
 const Teammodel = require("../models/team");
 
-// module.exports.getTeamMates = async (req, res) => {
-//   const teamName = req.params.teamName;
+module.exports.getTeamMates = async (req, res) => {
+  const teamName = req.params.teamName;
 
-//   try {
-//     const team = await Teammodel.findOne({ teamName: teamName })
-//       .populate({
-//         path: "members",
-//         select: "email fullname title description",
-//         populate: { path: "role", select: "name" },
-//       })
-//       .select("-_id members")
-//       .exec();
+  try {
+    const team = await Teammodel.findOne({ teamName: teamName })
+      .populate({
+        path: "members",
+        select: "email fullname title description",
+        populate: { path: "role", select: "name" },
+      })
+      .select("-_id members")
+      .exec();
 
-//     if (!team) {
-//       return res.status(404).json({ message: "Takım bulunamadı" });
-//     }
-//     res.status(200).json(team);
-//   } catch (error) {
-//     res.status(500).json({
-//       message: " Takım bilgileri getirilirken hata oluştu !",
-//       error: error.message,
-//     });
-//   }
-// };
+    if (!team) {
+      return res.status(404).json({ message: "Takım bulunamadı" });
+    }
+    res.status(200).json(team);
+  } catch (error) {
+    res.status(500).json({
+      message: " Takım bilgileri getirilirken hata oluştu !",
+      error: error.message,
+    });
+  }
+};
 
 module.exports.getTeamMatesWithPagination = async function (req, res) {
   try {

@@ -14,9 +14,9 @@ router.post("/create", authMiddleware, noteController.createNote);
 
 router.delete("/:noteId/:noteName", authMiddleware, noteController.deleteNote);
 
-router.get("/quill", authMiddleware, noteController.editor)
+router.get("/quill", authMiddleware, noteController.editor);
 
-router.get("/quill/:id", authMiddleware, noteController.getEditorById)
+router.get("/quill/:id", authMiddleware, noteController.getEditorById);
 
 // router.get("/main", async (req, res) => {
 //   try {
@@ -47,5 +47,5 @@ router.get("/quill/:id", authMiddleware, noteController.getEditorById)
 //   }
 // });
 
-router.post("/", authMiddleware, noteController.createNoteByPublic)
+router.post("/", authMiddleware, noteController.createNoteByPublic);
 module.exports = router;

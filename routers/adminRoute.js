@@ -55,6 +55,7 @@ var adminController = require("../controllers/adminController")
 router.get("/users" , adminController.getUsers)
 router.delete("/users" , adminController.deleteUsers)
 router.post("/users" , adminController.createUser)
+router.put("/users/:key" , adminController.updateUser)
 
 
 module.exports = router

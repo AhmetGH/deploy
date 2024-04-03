@@ -130,7 +130,7 @@ var express = require("express");
 var router = express.Router();
 var teamController = require("../controllers/teamController");
 
-router.get("/:teamName", teamController.getTeamMatesWithPagination);
+router.get("/:teamName", teamController.getTeamMates);
 
 router.get("/", teamController.getTeams);
 

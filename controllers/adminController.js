@@ -19,8 +19,14 @@ module.exports.getUsers = async function (req, res) {
     const searchTerm = req.query.searchTerm || "";
     const roleNames = req.query.roleName ? req.query.roleName.split(",") : [];
     const titles = req.query.title ? req.query.title.split(",") : [];
+    const filterStateInfo = req.query.stateName || "";
 
     const filter = {};
+    if (filterStateInfo === "active") {
+      filter["isActive"] = true;
+    } else if (filterStateInfo === "inactive") {
+      filter["isActive"] = false;
+    }
 
     if (searchTerm) {
       filter["fullname"] = { $regex: new RegExp(searchTerm, "i") };
@@ -62,6 +68,7 @@ module.exports.getUsers = async function (req, res) {
                 title: 1,
                 description: 1,
                 age: 1,
+                isActive: 1,
                 "role.name": 1,
               },
             },
@@ -79,16 +86,18 @@ module.exports.getUsers = async function (req, res) {
 
     const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
     const filteredUsers = result[0]?.filteredUsers ?? [];
+    //console.log("filteredUsers:", filteredUsers);
 
     const users = filteredUsers.map((item) => ({
-      // const role=await RoleModel.find({role:item.role})
       key: item._id,
       name: item.fullname,
       age: item.age,
       role: item.role[0]?.name,
       email: item.email,
       title: item.title,
+      state: item.isActive,
     }));
+    //console.log("users:", users);
 
     res.status(200).json({
       totalRecords,
@@ -130,30 +139,26 @@ module.exports.createUser = async (req, res) => {
       return res.status(404).json({ message: "Takım bulunamadı" });
     }
 
-    // Kullanıcıyı bul
     const user = await Usermodel.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "Kullanıcı bulunamadı" });
     }
-    //rolu bul
+
     const roleObject = await Rolemodel.findOne({ name: role });
     if (!roleObject) {
       return res.status(404).json({ message: "Rol bulunamadı" });
     }
 
-    // Kullanıcının takımda olup olmadığını kontrol et
     if (team.members.includes(user._id)) {
       return res
         .status(400)
         .json({ message: "Kullanıcı zaten bu takımda bulunuyor" });
     }
 
-    // Kullanıcıya rol ve takım bilgilerini ata
     user.role = roleObject._id;
     user.team.push(team._id);
     await user.save();
 
-    // Takıma kullanıcıyı ekle
     team.members.push(user._id);
     await team.save();
 
@@ -165,5 +170,39 @@ module.exports.createUser = async (req, res) => {
       message: "Kullanıcı takıma eklenirken bir hata oluştu",
       error: error.message,
     });
+  }
+};
+
+module.exports.updateUser = async function (req, res) {
+  try {
+    const role = await Rolemodel.findOne({ name: req.body.role });
+    if (!role) {
+      return res.status(404).json({ message: "Role not found" });
+    }
+    const { email, fullname, title, age, isActive } = req.body;
+    console.log("s", isActive);
+    const updatedStudent = await userModel.findByIdAndUpdate(
+      req.params.key,
+      {
+        email: email,
+        fullname: fullname,
+        role: role._id,
+        title: title,
+        age: age,
+        isActive: isActive,
+      },
+      { new: true }
+    );
+
+    if (!updatedStudent) {
+      return res.status(404).json({ message: "user not found" });
+    }
+
+    res.status(200).json({
+      message: "Student updated successfully",
+      student: updatedStudent,
+    });
+  } catch (err) {
+    res.status(500).json(err);
   }
 };

@@ -1,6 +1,7 @@
 const Topicmodel = require("../models/topic");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto-js");
+const idDecoder = require("../iddecoder.js");
 
 function convertToTree(data) {
   const tree = [];
@@ -44,9 +45,9 @@ function convertToTree(data) {
 }
 
 module.exports.createTopic = async (req, res) => {
-  console.log(req.body);
   const owner = req.user.id;
   const { topicName, access, edit, children, underElement } = req.body;
+
   try {
     const newTopic = new Topicmodel({
       topicName,
@@ -66,15 +67,17 @@ module.exports.createTopic = async (req, res) => {
 
 module.exports.updateTopic = async (req, res) => {
   const { topicId, noteId } = req.body;
+  const decodedTopicId = idDecoder(topicId);
+  const decodednoteId = idDecoder(noteId);
 
   try {
-    const topic = await Topicmodel.findById(topicId);
+    const topic = await Topicmodel.findById(decodedTopicId);
 
     if (!topic) {
       return res.status(404).json({ message: "Konu bulunamadı" });
     }
 
-    topic.post.push(noteId);
+    topic.post.push(decodednoteId);
 
     await topic.save();
 

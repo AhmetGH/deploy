@@ -27,7 +27,7 @@ app.get("/users", async (req, res) => {
   try {
     const users = await userModel.find().populate("role", "name");
     const allUsers=await userModel.find({})
-    //console.log(allUsers)
+   // console.log(a)
     const usersWithRoleNames = users.map((user) => ({
       email: user.email,
       role: user.role ? user.role.name : null,
