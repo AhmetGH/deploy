@@ -27,12 +27,13 @@ const topicSchema = new Schema({
     access: {               //4 rol
         type: String,
         required: true,
-        unique: false
+        unique: false,
+        default:false,
     },
     edit: {               //3 rol
         type: String,
         required: true,
-        unique: false
+        unique: false,default:false,
     },
     post: [{ type: Schema.Types.ObjectId, ref: 'Note', required: false }],
     members: [{ type: Schema.Types.ObjectId, ref: 'User', required: false }]

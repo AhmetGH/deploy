@@ -7,4 +7,6 @@ router.get("/", authMiddleware, aboutController.allAbouts);
 
 router.post("/", authMiddleware, aboutController.createAbout);
 
+router.get("/ispublic/:noteId", authMiddleware, aboutController.aboutIsPublic);
+
 module.exports = router;

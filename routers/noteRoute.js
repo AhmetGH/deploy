@@ -6,13 +6,15 @@ const noteController = require("../controllers/noteController");
 
 router.get("/", authMiddleware, noteController.getNotesToHome);
 
+router.put("/publish/:noteId", authMiddleware, noteController.publishNote);
+
 router.get("/my", authMiddleware, noteController.getNotesByUserId);
 
 router.put("/update", noteController.updateNote);
 
 router.post("/create", authMiddleware, noteController.createNote);
 
-router.delete("/:noteId/:noteName", authMiddleware, noteController.deleteNote);
+router.delete("/:noteId", authMiddleware, noteController.deleteNote);
 
 router.get("/quill", authMiddleware, noteController.editor);
 

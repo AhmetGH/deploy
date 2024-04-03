@@ -26,6 +26,13 @@ function convertToTree(data) {
           newNode.children.push(child);
         }
       });
+    } else {
+      const newNodeWithoutChildren = {
+        title: node.topicName,
+        key: uuidv4(),
+        id: node._id,
+      };
+      return newNodeWithoutChildren;
     }
 
     return newNode;
@@ -43,16 +50,66 @@ function convertToTree(data) {
 
   return tree;
 }
+// function convertStringToData(dataString) {
+//   const data = JSON.parse(dataString);
+
+//   //console.log("data", data);
+//   const getItem = (title, key, children = [], id = "") => ({
+//     title,
+//     key,
+//     children,
+//     id,
+//   });
+
+//   return data.map((item) => {
+//     const { title, key, children, id } = item;
+//     // console.log("id:", id);
+//     // console.log("children:", children);
+//     // console.log("key:", key);
+//     // console.log("title:", title);
+//     if (children && children.length > 0) {
+//       children.forEach((id) => {
+//         const childNode = data.find((item) => item._id == childId.toString());
+
+//         if (childNode) {
+//           const child = buildTree(childNode);
+//           const jsonString2 = JSON.stringify(child.id);
+//           const encodedid1 = btoa(jsonString2).toString("base64");
+//           child.id = encodedid1;
+//           newNode.children.push(child);
+//         }
+//       });
+//     }
+//     const convertedChildren = children.map((child) => {
+//       const { title, key, children, id } = child;
+//       // console.log("id:", id)
+//       // console.log("children:", children)
+//       // console.log("key:", key)
+//       // console.log("title:", title)
+
+//       //const convertedChild = getItem(title, key, children, id);
+//       const csl = `getItem("${title}", "${key}",  ${JSON.stringify(
+//         children
+//       )}, "${id}")`;
+//       //console.log("csl:", csl);
+
+//       return csl;
+//     });
+//     const result = `getItem("${title}", "${key}",${JSON.stringify(
+//       convertedChildren
+//     )}, "${id}")`;
+//     //console.log("1111111");
+//     //console.log("aaaaaaaaaaaaaaaaaaaaaaa" + result);
+//     return result;
+//   });
+// }
 
 module.exports.createTopic = async (req, res) => {
   const owner = req.user.id;
-  const { topicName, access, edit, children, underElement } = req.body;
-
+  const { topicName, children, underElement } = req.body;
   try {
     const newTopic = new Topicmodel({
       topicName,
-      access,
-      edit,
       owner,
       children,
       underElement,
@@ -89,12 +146,11 @@ module.exports.updateTopic = async (req, res) => {
 
 module.exports.getTopicById = async (req, res) => {
   const topicId = req.params.topicId;
+
   const decodedId = atob(topicId, "base64").toString("utf-8");
   const id = decodedId.replace(/^"(.*)"$/, "$1");
-
   try {
     const topic = await Topicmodel.findById(id).populate("post");
-
     if (!topic) {
       return res.status(404).json({ message: "Konu bulunamadı" });
     }
@@ -120,6 +176,10 @@ module.exports.getTopicTypeAsTreeData = async (req, res) => {
     const tree = convertToTree(allTopic);
 
     const treeData = JSON.stringify(tree, null, 2);
+    //const dataArray = convertStringToData(treeData);
+    //console.log("11");
+    //console.log(dataArray.join(",\n"));
+
     res.json({ treeData: treeData, allTopic: allTopic });
   } catch (error) {
     return res.status(400).json(error);

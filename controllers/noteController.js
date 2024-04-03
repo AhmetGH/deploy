@@ -5,11 +5,10 @@ const idDecoder = require("../iddecoder.js");
 
 module.exports.getNotesToHome = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const member = await Notemodel.find({ members: userId }).populate(
-      "noteName"
-    );
-    const allnotes = await Notemodel.find({}).sort({ _id: -1 });
+    const allnotes = await Notemodel.find({ isPublic: true })
+      .populate("noteName")
+      .sort({ _id: -1 });
+
     const allNotesData = allnotes.map((note) => {
       const jsonString = JSON.stringify(note._id);
       const encodedid = btoa(jsonString).toString("base64");
@@ -19,7 +18,25 @@ module.exports.getNotesToHome = async (req, res) => {
         noteDetails: note.description,
       };
     });
-    res.json({ allNotes: allNotesData, member: member });
+    res.json({ allNotes: allNotesData });
+  } catch (error) {
+    return res.status(400).json(error);
+  }
+};
+
+module.exports.publishNote = async (req, res) => {
+  const isPublished = req.body.isPublished;
+  const decodedNoteId = idDecoder(req.params.noteId);
+
+  try {
+    const note = await Notemodel.findById(decodedNoteId);
+    if (!note) {
+      return res.status(404).json({ error: "cannot find note" });
+    }
+    note.isPublic = isPublished;
+    await note.save();
+
+    res.status(200).json({ message: "Publish success" });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -77,8 +94,8 @@ module.exports.createNote = async (req, res) => {
       isPublic: false,
       description: "",
     });
+
     const savedNote = await newNote.save();
-    console.log("savedNote:", savedNote);
 
     const jsonString = JSON.stringify(savedNote._id);
     const encodedid = btoa(jsonString).toString("base64");
@@ -87,7 +104,6 @@ module.exports.createNote = async (req, res) => {
       noteName: savedNote.noteName,
       noteId: encodedid,
     };
-    console.log("notesData:", notesData);
 
     return res.status(200).json({ notesData });
   } catch (error) {
@@ -97,7 +113,6 @@ module.exports.createNote = async (req, res) => {
 
 module.exports.deleteNote = async (req, res) => {
   const noteId = idDecoder(req.params.noteId);
-  const noteName = req.params.noteName;
 
   try {
     const note = await Notemodel.findById(noteId);
