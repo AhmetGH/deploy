@@ -40,7 +40,7 @@ module.exports.adminRegister = async (req, res) => {
 module.exports.userRegister = async (req, res) => {
   try {
     const { email, role, title, age, fullname } = req.body;
-    console.log("e" , age)
+    console.log("e", age);
 
     const user = await userModel.findOne({ email });
     if (user) {
@@ -78,7 +78,7 @@ module.exports.userRegister = async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `http://localhost:3000/auth/verify?token=${token}`;
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
     await sendEmail(
       email,
       "Şifrenizi belirlemek için bağlantıya tıklayınız.",
@@ -135,7 +135,7 @@ module.exports.userRegisterForTeam = async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `http://localhost:3000/auth/verify?token=${token}`;
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
     await sendEmail(
       email,
       "Şifrenizi belirlemek için bağlantıya tıklayınız.",
@@ -162,7 +162,7 @@ module.exports.verify = async (req, res) => {
     }
 
     res.redirect(
-      `http://localhost:4000/auth/reset-password/${token}?hasUser=false`
+      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}?hasUser=false`
     );
   } catch (error) {
     res.status(500).json(error);
@@ -184,7 +184,7 @@ module.exports.forgotPassword = async (req, res) => {
       expiresIn: "15d",
     });
 
-    const url = `http://localhost:3000/auth/verify-forget?token=${token}`;
+    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify-forget?token=${token}`;
 
     await sendEmail(email, "Şifre sıfırlama", url);
 
@@ -205,7 +205,9 @@ module.exports.verifyForget = async (req, res) => {
     if (!user) {
       return res.status(400).send("Geçersiz token.");
     }
-    res.redirect(`http://localhost:4000/auth/reset-password/${token}`);
+    res.redirect(
+      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`
+    );
   } catch (error) {
     res.status(500).send(error);
   }
