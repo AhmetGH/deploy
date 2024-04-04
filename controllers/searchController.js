@@ -90,7 +90,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
     for (const note of notes) {
       const jsonString = JSON.stringify(note._id);
       const encodedid = Buffer.from(jsonString).toString("base64");
-      const cleanDescription = note.description.replace(/<[^>]+>/g, '');
+      const cleanDescription = note.description.replace(/<[^>]+>/g, "");
       await esClient.index({
         index: "kbase",
         body: {
@@ -132,7 +132,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
 
     const abouts = await About.find().lean();
     for (const about of abouts) {
-      const cleanDescription = about.description.replace(/<[^>]+>/g, '');
+      const cleanDescription = about.description.replace(/<[^>]+>/g, "");
       await esClient.index({
         index: "kbase",
         body: {

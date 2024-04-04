@@ -170,17 +170,24 @@ module.exports.getTopicById = async (req, res) => {
 };
 
 module.exports.getTopicTypeAsTreeData = async (req, res) => {
+  const userId = req.user.id;
+  console.log(userId);
   try {
     const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
+    const yourOwnTopics = await Topicmodel.find({ owner: userId });
+    console.log(yourOwnTopics);
 
     const tree = convertToTree(allTopic);
-
     const treeData = JSON.stringify(tree, null, 2);
+    
+    const yourOwnTree=convertToTree(yourOwnTopics);
+    const yourOwnTreeData=JSON.stringify(yourOwnTree, null, 2);
+
     //const dataArray = convertStringToData(treeData);
     //console.log("11");
     //console.log(dataArray.join(",\n"));
 
-    res.json({ treeData: treeData, allTopic: allTopic });
+    res.json({ treeData: treeData, allTopic: allTopic,yourOwnTreeData:yourOwnTreeData,yourOwnTopics:yourOwnTopics });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -200,11 +207,12 @@ module.exports.getTopicByIdWithChildren = async (req, res) => {
 };
 
 module.exports.getUsersTopic = async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user._id;
   try {
     const member = await Topicmodel.find({ owner: userId }).populate(
       "topicName"
     );
+    console.log(member);
 
     res.json({ member });
   } catch (error) {

@@ -1,7 +1,6 @@
 var express = require("express");
 var router = express.Router();
-var adminController = require("../controllers/adminController")
-
+var adminController = require("../controllers/adminController");
 
 /**
  * @swagger
@@ -30,7 +29,7 @@ var adminController = require("../controllers/adminController")
  *           type: string
  *       - in: query
  *         name: searchTerm
- *         description: Search term for filtering by fullname 
+ *         description: Search term for filtering by fullname
  *         required: false
  *         schema:
  *           type: string
@@ -51,11 +50,9 @@ var adminController = require("../controllers/adminController")
  *         description: A list of users
  */
 
+router.get("/users", adminController.getUsers);
+router.delete("/users", adminController.deleteUsers);
+router.post("/users", adminController.createUser);
+router.put("/users", adminController.updateUser);
 
-router.get("/users" , adminController.getUsers)
-router.delete("/users" , adminController.deleteUsers)
-router.post("/users" , adminController.createUser)
-router.put("/users/:key" , adminController.updateUser)
-
-
-module.exports = router
+module.exports = router;

@@ -132,12 +132,14 @@ var teamController = require("../controllers/teamController");
 
 router.get("/:teamName", teamController.getTeamMates);
 
-router.get("/", teamController.getTeams);
+router.get("/", teamController.getTeamsWithPagination);
 
 router.post("/", teamController.postTeam);
 
 router.post("/:teamName/member", teamController.postTeamMember);
 
-router.put("/:teamName/member/:id", teamController.putMember);
+router.put("/", teamController.updateTeam);
+
+router.delete("/", teamController.deleteTeams);
 
 module.exports = router;

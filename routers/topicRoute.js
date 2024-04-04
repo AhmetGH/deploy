@@ -10,7 +10,7 @@ router.put("/", authMiddleware,topicController.updateTopic)
 
 router.get("/:topicId", authMiddleware, topicController.getTopicById)
 
-router.get("/", topicController.getTopicTypeAsTreeData)
+router.get("/",authMiddleware, topicController.getTopicTypeAsTreeData)
 
 router.get("/:id", authMiddleware, topicController.getTopicByIdWithChildren)
 

@@ -1,4 +1,5 @@
 const Usermodel = require("../models/user");
+const bcrypt = require("bcrypt");
 
 module.exports.userSettings = async (req, res) => {
   try {
@@ -18,26 +19,43 @@ module.exports.updateUserSettings = async (req, res) => {
     if (newPass) {
       const user = await Usermodel.findOne({
         _id: req.user.id,
-        password: currentPass,
       });
 
       if (!user) {
-        return res.status(500).json({ message: "Şifreniz yanlış" });
+        return res.status(400).json({ message: "Invalid user" });
       }
 
-      if (currentPass === newPass || newPass === "")
+      // Compare the current password with the hashed password in the database
+      const isPasswordCorrect = await bcrypt.compare(
+        currentPass,
+        user.password
+      );
+      if (!isPasswordCorrect) {
         return res
           .status(400)
-          .json({ message: "Lütfen şifrenizi düzgün giriniz" });
+          .json({ message: "Şuanki şifreniz yanlış girdiniz" });
+      }
+
+      if (currentPass === newPass) {
+        return res.status(400).json({
+          message: "Yeni şifreniz eski şifrenizle aynı olamaz",
+        });
+      }
 
       try {
+        // Hash the new password before updating
+        const hashedNewPass = await bcrypt.hash(newPass, 10); // 10 is the salt rounds
+
         const user_profile = await Usermodel.findByIdAndUpdate(
           req.user.id,
-          { password: newPass },
+          { password: hashedNewPass },
           { new: true }
         );
-        if (!user_profile)
-          return res.status(400).json({ message: "Kullanıcı güncellenemedi" });
+
+        if (!user_profile) {
+          return res.status(400).json({ message: "Failed to update user" });
+        }
+
         return res.sendStatus(200);
       } catch (error) {
         return res.status(500).json(error);

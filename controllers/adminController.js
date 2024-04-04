@@ -42,6 +42,8 @@ module.exports.getUsers = async function (req, res) {
     const sortStage =
       Object.keys(sortOptions).length > 0 ? { $sort: sortOptions } : {};
 
+    const collation = { locale: "en", strength: 2 };
+
     const pipeline = [
       {
         $lookup: {
@@ -82,11 +84,10 @@ module.exports.getUsers = async function (req, res) {
       },
     ];
 
-    const result = await userModel.aggregate(pipeline);
+    const result = await userModel.aggregate(pipeline).collation(collation);
 
     const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
     const filteredUsers = result[0]?.filteredUsers ?? [];
-    //console.log("filteredUsers:", filteredUsers);
 
     const users = filteredUsers.map((item) => ({
       key: item._id,
@@ -97,7 +98,6 @@ module.exports.getUsers = async function (req, res) {
       title: item.title,
       state: item.isActive,
     }));
-    //console.log("users:", users);
 
     res.status(200).json({
       totalRecords,
@@ -177,30 +177,36 @@ module.exports.updateUser = async function (req, res) {
   try {
     const role = await Rolemodel.findOne({ name: req.body.role });
     if (!role) {
-      return res.status(404).json({ message: "Role not found" });
+      return res.status(404).json({
+        message: "Kullanıcı güncellenemedi",
+        description: "Rol bulunamadı",
+      });
     }
-    const { email, fullname, title, age, isActive } = req.body;
-    console.log("s", isActive);
+    const { email, name, title, age, state, key } = req.body;
+
     const updatedStudent = await userModel.findByIdAndUpdate(
-      req.params.key,
+      key,
       {
         email: email,
-        fullname: fullname,
+        fullname: name,
         role: role._id,
         title: title,
         age: age,
-        isActive: isActive,
+        isActive: state,
       },
       { new: true }
     );
 
     if (!updatedStudent) {
-      return res.status(404).json({ message: "user not found" });
+      return res.status(404).json({
+        message: "Kullanıcı güncellenemedi",
+        description: "user not found",
+      });
     }
 
     res.status(200).json({
-      message: "Student updated successfully",
-      student: updatedStudent,
+      message: "Kullanıcı güncellendi",
+      descripton: "",
     });
   } catch (err) {
     res.status(500).json(err);
