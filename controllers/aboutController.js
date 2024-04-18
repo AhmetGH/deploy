@@ -26,7 +26,6 @@ module.exports.allAbouts = async (req, res) => {
 module.exports.aboutIsPublic = async (req, res) => {
   try {
     const noteId = idDecoder(req.params.noteId);
-    console.log("noteId:", noteId);
 
     const about = await Aboutmodel.findOne({ noteId: noteId });
     if (!about) {

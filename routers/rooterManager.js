@@ -12,7 +12,7 @@ module.exports = function root(app) {
   app.use("/team", teamRoute);
   app.use("/role", roleRouter);
   app.use("/notes", noteRouter);
-  app.use("/about", aboutRouter);
+  //app.use("/about", aboutRouter);
   app.use("/settings", settingsRoute);
   app.use("/auth", authRoute);
   app.use("/topic", topicRoute);

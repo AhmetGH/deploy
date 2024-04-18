@@ -39,16 +39,22 @@ module.exports.adminRegister = async (req, res) => {
 //user register without team
 module.exports.userRegister = async (req, res) => {
   try {
-    const { email, role, title, age, fullname } = req.body;
-    console.log("e", age);
+    const { email, role, title, age, name } = req.body;
 
     const user = await userModel.findOne({ email });
     if (user) {
-      return res.status(400).send("Kullanıcı zaten var");
+      return res.status(400).json({
+        message: "Kullanıcı eklenemedi",
+        description: "Kullanıcı zaten var",
+      });
     }
 
     const getRole = await roleModel.findOne({ name: "user" });
-    if (!getRole) return res.status(400).send("Kullanıcı rolü bulunamadı");
+    if (!getRole)
+      return res.status(400).json({
+        message: "Kullanıcı eklenemedi",
+        description: "Rol bulunamadı",
+      });
 
     let newUser;
 
@@ -58,7 +64,7 @@ module.exports.userRegister = async (req, res) => {
         role: getRole._id,
         title: title,
         age: age,
-        fullname: fullname,
+        fullname: name,
       });
     } else {
       var roleObject = await roleModel.findOne({ name: role });
@@ -67,7 +73,7 @@ module.exports.userRegister = async (req, res) => {
         role: roleObject._id,
         age: age,
         title: title,
-        fullname: fullname,
+        fullname: name,
       });
     }
 
@@ -78,14 +84,17 @@ module.exports.userRegister = async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
+    const url = `${process.env.BACK_END_URL}/auth/verify?token=${token}`;
     await sendEmail(
       email,
       "Şifrenizi belirlemek için bağlantıya tıklayınız.",
       url
     );
 
-    res.sendStatus(200);
+    return res.status(200).json({
+      message: "Kullanıcı ekleme başarılı!",
+      description: "Kullanıcıya davet linki gönderildi.",
+    });
   } catch (error) {
     res.status(500).json(error);
   }
@@ -135,7 +144,7 @@ module.exports.userRegisterForTeam = async (req, res) => {
     newUser.emailToken = token;
     await newUser.save();
 
-    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify?token=${token}`;
+    const url = `${process.env.BACK_END_URL}/auth/verify?token=${token}`;
     await sendEmail(
       email,
       "Şifrenizi belirlemek için bağlantıya tıklayınız.",
@@ -162,7 +171,7 @@ module.exports.verify = async (req, res) => {
     }
 
     res.redirect(
-      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}?hasUser=false`
+      `${process.env.FRONT_END_URL}/auth/reset-password/${token}?hasUser=false`
     );
   } catch (error) {
     res.status(500).json(error);
@@ -184,7 +193,7 @@ module.exports.forgotPassword = async (req, res) => {
       expiresIn: "15d",
     });
 
-    const url = `https://ahmetgh-deploy-deploy.onrender.com/auth/verify-forget?token=${token}`;
+    const url = `${process.env.BACK_END_URL}/auth/verify-forget?token=${token}`;
 
     await sendEmail(email, "Şifre sıfırlama", url);
 
@@ -205,9 +214,7 @@ module.exports.verifyForget = async (req, res) => {
     if (!user) {
       return res.status(400).send("Geçersiz token.");
     }
-    res.redirect(
-      `https://deployfe-ahmetghs-projects.vercel.app/auth/reset-password/${token}`
-    );
+    res.redirect(`${process.env.FRONT_END_URL}/auth/reset-password/${token}`);
   } catch (error) {
     res.status(500).send(error);
   }

@@ -105,7 +105,6 @@ module.exports.getUsers = async function (req, res) {
       searchTerm,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "İç sunucu hatası" });
   }
 };
@@ -113,7 +112,6 @@ module.exports.getUsers = async function (req, res) {
 module.exports.deleteUsers = async function (req, res) {
   try {
     const userIds = req.body.userIds;
-    console.log("userIds:", userIds, "body:", req);
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ message: "Geçersiz kullanıcı kimlikleri" });
     }
@@ -124,7 +122,6 @@ module.exports.deleteUsers = async function (req, res) {
       deletedCount: result.deletedCount,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "İç sunucu hatası" });
   }
 };
@@ -139,7 +136,7 @@ module.exports.createUser = async (req, res) => {
       return res.status(404).json({ message: "Takım bulunamadı" });
     }
 
-    const user = await Usermodel.findOne({ email });
+    const user = await userModel.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "Kullanıcı bulunamadı" });
     }

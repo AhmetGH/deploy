@@ -26,18 +26,16 @@ app.get("/users", async (req, res) => {
   try {
     const users = await userModel.find().populate("role", "name");
     const allUsers = await userModel.find({});
-    // console.log(a)
     const usersWithRoleNames = users.map((user) => ({
+      _id: user._id,
       email: user.email,
       role: user.role ? user.role.name : null,
     }));
-    console.log(usersWithRoleNames);
 
     res
       .status(200)
       .json({ usersWithRoleNames: usersWithRoleNames, allUsers: allUsers });
   } catch (error) {
-    console.error("Kullanıcılar getirme hatası:", error);
     res.status(500).json({ error: "Kullanıcılar getirilemedi" });
   }
 });

@@ -10,6 +10,15 @@ router.put("/publish/:noteId", authMiddleware, noteController.publishNote);
 
 router.get("/my", authMiddleware, noteController.getNotesByUserId);
 
+router.post("/favorite", authMiddleware, noteController.addFavorite);
+router.get("/favorite", authMiddleware, noteController.getByIdFavorites);
+
+router.delete(
+  "/favorite/:noteId",
+  authMiddleware,
+  noteController.deleteFavorite
+);
+
 router.put("/update", noteController.updateNote);
 
 router.post("/create", authMiddleware, noteController.createNote);

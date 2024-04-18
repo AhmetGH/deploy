@@ -130,13 +130,17 @@ var express = require("express");
 var router = express.Router();
 var teamController = require("../controllers/teamController");
 
-router.get("/:teamName", teamController.getTeamMates);
+router.get("/allMembers/:teamName", teamController.allMembers);
 
-router.get("/", teamController.getTeamsWithPagination);
+router.get("/teamMates/:teamName", teamController.getTeamMembers);
 
-router.post("/", teamController.postTeam);
+router.get("/", teamController.getTeams);
 
-router.post("/:teamName/member", teamController.postTeamMember);
+router.post("/", teamController.createTeam);
+
+router.put("/teamMates/:teamName", teamController.updateTeamMember);
+router.delete("/teamMates/:teamName", teamController.removeTeamMember);
+router.post("/teamMates/:teamName", teamController.createTeamMember);
 
 router.put("/", teamController.updateTeam);
 

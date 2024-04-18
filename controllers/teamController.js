@@ -2,32 +2,7 @@ const Usermodel = require("../models/user");
 const Rolemodel = require("../models/role");
 const Teammodel = require("../models/team");
 
-module.exports.getTeamMates = async (req, res) => {
-  const teamName = req.params.teamName;
-
-  try {
-    const team = await Teammodel.findOne({ teamName: teamName })
-      .populate({
-        path: "members",
-        select: "email fullname title description",
-        populate: { path: "role", select: "name" },
-      })
-      .select("-_id members")
-      .exec();
-
-    if (!team) {
-      return res.status(404).json({ message: "Takım bulunamadı" });
-    }
-    res.status(200).json(team);
-  } catch (error) {
-    res.status(500).json({
-      message: " Takım bilgileri getirilirken hata oluştu !",
-      error: error.message,
-    });
-  }
-};
-
-module.exports.getTeamMatesWithPagination = async function (req, res) {
+module.exports.getTeamMembers = async function (req, res) {
   try {
     const pageSize = 3;
     const pageNumber = parseInt(req.query.pageNumber || 1);
@@ -46,8 +21,15 @@ module.exports.getTeamMatesWithPagination = async function (req, res) {
     const searchTerm = req.query.searchTerm || "";
     const roleNames = req.query.roleName ? req.query.roleName.split(",") : [];
     const titles = req.query.title ? req.query.title.split(",") : [];
+    const filterStateInfo = req.query.stateName || "";
 
     const filter = { teamName };
+
+    if (filterStateInfo === "active") {
+      filter["members.isActive"] = true;
+    } else if (filterStateInfo === "inactive") {
+      filter["members.isActive"] = false;
+    }
 
     if (searchTerm) {
       filter["members.fullname"] = { $regex: new RegExp(searchTerm, "i") };
@@ -101,12 +83,14 @@ module.exports.getTeamMatesWithPagination = async function (req, res) {
             { $limit: pageSize },
             {
               $project: {
+                "members._id": 1,
                 "members.email": 1,
                 "members.fullname": 1,
                 "members.title": 1,
                 "members.description": 1,
                 "members.role.name": 1,
                 "members.age": 1,
+                "members.isActive": 1,
               },
             },
           ],
@@ -118,27 +102,32 @@ module.exports.getTeamMatesWithPagination = async function (req, res) {
         },
       },
     ];
-
     const result = await Teammodel.aggregate(pipeline);
 
     const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
+
     const filteredMembers = result[0]?.filteredMembers ?? [];
+
     const members = filteredMembers.map((item) => ({
-      // const role=await RoleModel.find({role:item.role})
-      key: item._id,
-      teamName: item.teamName,
-      description: item.description,
+      key: item.members._id,
+      fullname: item.members.fullname,
+      age: item.members.age,
+      role: item.members.role[0]?.name,
+      email: item.members.email,
+      title: item.members.title,
+      state: item.members.isActive,
     }));
     res.status(200).json({
       totalRecords,
       members,
+      searchTerm,
     });
   } catch (err) {
     res.status(500).json(err);
   }
 };
 
-module.exports.getTeamsWithPagination = async (req, res) => {
+module.exports.getTeams = async (req, res) => {
   try {
     const searchTerm = req.query.searchTerm || "";
     const pageNumber = parseInt(req.query.pageNumber) || 1;
@@ -183,7 +172,7 @@ module.exports.getTeamsWithPagination = async (req, res) => {
       {
         $project: {
           teamName: 1,
-          description: 1,
+          teamDescription: 1,
           memberCount: { $size: "$members" },
         },
       },
@@ -200,11 +189,11 @@ module.exports.getTeamsWithPagination = async (req, res) => {
 
     const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
     const teams = result[0]?.teams ?? [];
-    const editedTeams = teams.map((item) => ({
-      key: item._id,
-      teamName: item.teamName,
-      description: item.description,
-      memberCount: item.memberCount,
+    const editedTeams = teams.map((team) => ({
+      key: team._id,
+      teamName: team.teamName,
+      teamDescription: team.teamDescription,
+      memberCount: team.memberCount,
     }));
     res.status(200).json({
       totalRecords,
@@ -215,8 +204,8 @@ module.exports.getTeamsWithPagination = async (req, res) => {
   }
 };
 
-module.exports.postTeam = async (req, res) => {
-  const { teamName, description } = req.body;
+module.exports.createTeam = async (req, res) => {
+  const { teamName, teamDescription } = req.body;
 
   try {
     const hasTeam = await Teammodel.findOne({ teamName: teamName });
@@ -230,7 +219,7 @@ module.exports.postTeam = async (req, res) => {
 
     const yeniTakim = new Teammodel({
       teamName: teamName,
-      description: description,
+      teamDescription: teamDescription,
     });
 
     await yeniTakim.save();
@@ -242,63 +231,90 @@ module.exports.postTeam = async (req, res) => {
   } catch (error) {}
 };
 
-module.exports.postTeamMember = async (req, res) => {
+module.exports.createTeamMember = async (req, res) => {
   try {
     const teamName = req.params.teamName;
-    const { email, role } = req.body;
+    const userIds = req.body;
 
     const team = await Teammodel.findOne({ teamName });
+
     if (!team) {
-      return res.status(404).json({ message: "Takım bulunamadı" });
+      return res.status(400).json({
+        message: "Takım bulunamadı",
+        description: "",
+      });
     }
 
-    // Kullanıcıyı bul
-    const user = await Usermodel.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "Kullanıcı bulunamadı" });
-    }
-    //rolu bul
-    const roleObject = await Rolemodel.findOne({ name: role });
-    if (!roleObject) {
-      return res.status(404).json({ message: "Rol bulunamadı" });
-    }
+    await Usermodel.updateMany(
+      { _id: { $in: userIds } },
+      { $addToSet: { team: team._id } }
+    );
 
-    // Kullanıcının takımda olup olmadığını kontrol et
-    if (team.members.includes(user._id)) {
-      return res
-        .status(400)
-        .json({ message: "Kullanıcı zaten bu takımda bulunuyor" });
-    }
+    team.members.push(...userIds);
 
-    // Kullanıcıya rol ve takım bilgilerini ata
-    user.role = roleObject._id;
-    user.team.push(team._id);
-    await user.save();
-
-    // Takıma kullanıcıyı ekle
-    team.members.push(user._id);
     await team.save();
 
-    return res
-      .status(201)
-      .json({ message: "Kullanıcı başarıyla takıma eklendi", user });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Kullanıcı takıma eklenirken bir hata oluştu",
-      error: error.message,
+    return res.status(200).json({
+      message: `Kullanıcı ${teamName} takımına eklendi`,
+      description: "",
     });
+  } catch (error) {
+    return res.status(400).json({
+      message: error,
+      description: "",
+    });
+  }
+};
+
+module.exports.updateTeamMember = async function (req, res) {
+  try {
+    const role = await Rolemodel.findOne({ name: req.body.role });
+    if (!role) {
+      return res.status(404).json({
+        message: "Kullanıcı güncellenemedi",
+        teamDescription: "Rol bulunamadı",
+      });
+    }
+    const { email, fullname, title, age, state, key } = req.body;
+
+    const updatedStudent = await Usermodel.findByIdAndUpdate(
+      key,
+      {
+        email: email,
+        fullname: fullname,
+        role: role._id,
+        title: title,
+        age: age,
+        isActive: state,
+      },
+      { new: true }
+    );
+
+    if (!updatedStudent) {
+      return res.status(404).json({
+        message: "Kullanıcı güncellenemedi",
+        description: "user not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Kullanıcı güncellendi",
+      descripton: "",
+    });
+  } catch (err) {
+    res.status(500).json(err);
   }
 };
 
 module.exports.updateTeam = async function (req, res) {
   try {
-    const { teamName, description, key } = req.body;
+    const { teamName, teamDescription, key } = req.body;
 
     const team = await Teammodel.findByIdAndUpdate(
       key,
       {
         teamName: teamName,
-        description: description,
+        teamDescription: teamDescription,
       },
       { new: true }
     );
@@ -318,7 +334,6 @@ module.exports.updateTeam = async function (req, res) {
 module.exports.deleteTeams = async function (req, res) {
   try {
     const teamIds = req.body.teamIds;
-    console.log("teamIds:", teamIds, "body:", req);
     if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
       return res.status(400).json({ message: "Geçersiz kullanıcı kimlikleri" });
     }
@@ -329,7 +344,60 @@ module.exports.deleteTeams = async function (req, res) {
       deletedCount: result.deletedCount,
     });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "İç sunucu hatası" });
+  }
+};
+
+module.exports.allMembers = async function (req, res) {
+  try {
+    const teamName = req.params.teamName;
+    const members = await Teammodel.findOne({ teamName }).populate({
+      path: "members",
+      select: "-_id email",
+    });
+    if (!members) return res.status(400).json();
+
+    return res.status(200).json(members);
+  } catch (error) {
+    return res.status(400).json({
+      message: error,
+      description: "",
+    });
+  }
+};
+
+module.exports.removeTeamMember = async (req, res) => {
+  try {
+    const teamName = req.params.teamName;
+    const { userIds } = req.body;
+
+    const team = await Teammodel.findOne({ teamName });
+
+    if (!team) {
+      return res.status(400).json({
+        message: "Takım bulunamadı",
+        description: "",
+      });
+    }
+
+    team.members = team.members.filter(
+      (member) => !userIds.includes(member.toString())
+    );
+    await team.save();
+
+    await Usermodel.updateMany(
+      { _id: { $in: userIds } },
+      { $pull: { team: team._id } }
+    );
+
+    return res.status(200).json({
+      message: "Kullanıcılar takımdan başarıyla çıkarıldı",
+      description: "",
+    });
+  } catch (error) {
+    return res.status(400).json({
+      message: error.message,
+      description: "",
+    });
   }
 };
