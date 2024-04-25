@@ -6,6 +6,3 @@ const idDecoder = (codedId) => {
 };
 
 module.exports = idDecoder;
-
-
-

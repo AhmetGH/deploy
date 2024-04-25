@@ -1,7 +1,6 @@
 const { Client } = require("@elastic/elasticsearch");
 const Note = require("../models/note");
 const Team = require("../models/team");
-const About = require("../models/about");
 const Topic = require("../models/topic");
 
 const esClient = new Client({
@@ -18,7 +17,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
   try {
     await esClient.indices.create(
       {
-        index: "kbase1",
+        index: "kbase",
         body: {
           mappings: {
             properties: {
@@ -75,7 +74,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
       const encodedid = Buffer.from(jsonString).toString("base64");
       const cleanDescription = note.description.replace(/<[^>]+>/g, "");
       await esClient.index({
-        index: "kbase1",
+        index: "kbase",
         id: note._id.toHexString(),
         body: {
           noteName: note.noteName,
@@ -85,20 +84,18 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
       });
     }
 
-    const topics = await Topic.find().populate("children").lean();
+    const topics = await Topic.find().lean();
 
     for (const topic of topics) {
-      const childrenTopicNames = topic.children.map((child) => child.topicName);
-
       const jsonString = JSON.stringify(topic._id);
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "kbase1",
+        index: "kbase",
         id: topic._id.toHexString(),
         body: {
           topicName: topic.topicName,
-          children: childrenTopicNames,
+          parentName: topic.parent,
           topicId: encodedid,
         },
       });
@@ -107,7 +104,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
     const teams = await Team.find().lean();
     for (const team of teams) {
       await esClient.index({
-        index: "kbase1",
+        index: "kbase",
         id: team._id.toHexString(),
         body: {
           teamName: team.teamName,
@@ -126,27 +123,19 @@ module.exports.searchSuggestions = async (req, res) => {
     const { query } = req.query;
 
     const result = await esClient.search({
-      index: "kbase1",
+      index: "kbase",
       body: {
         query: {
-          bool: {
-            should: [
-              {
-                wildcard: { noteName: `${query}*` },
-              },
-              {
-                wildcard: { teamName: `${query}*` },
-              },
-              {
-                wildcard: { teamDescription: `${query}*` },
-              },
-              {
-                wildcard: { noteDescription: `${query}*` },
-              },
-              {
-                wildcard: { topicName: `${query}*` },
-              },
+          multi_match: {
+            query: `${query}`,
+            fields: [
+              "noteName^3",
+              "teamName^2",
+              "teamDescription",
+              "noteDescription",
+              "topicName^2",
             ],
+            type: "phrase_prefix",
           },
         },
       },
@@ -159,7 +148,7 @@ module.exports.searchSuggestions = async (req, res) => {
       teamDescription: hit._source.teamDescription,
       noteDescription: hit._source.noteDescription,
       topicName: hit._source.topicName,
-      children: hit._source.children,
+      parentName: hit._source.parentName,
       topicId: hit._source.topicId,
     }));
 

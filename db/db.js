@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { Client } = require("@elastic/elasticsearch");
+//const topicModel = require("../models/topic");
 
 const connection =
   "mongodb+srv://ahmetgocmen07:Cfk9tY27nvBaFzxS@ahmet.shuruci.mongodb.net/?retryWrites=true&w=majority&appName=ahmet";
@@ -25,24 +26,25 @@ mongoose
     const teamsCollection = db.collection("teams");
     const topicsCollection = db.collection("topics");
 
-    // MongoDB Change Stream'lerini başlatma
     const notesChangeStream = notesCollection.watch();
     const teamsChangeStream = teamsCollection.watch();
     const topicsChangeStream = topicsCollection.watch();
 
-    // Her koleksiyon için değişiklik dinleme
     notesChangeStream.on("change", async (change) => {
-      console.log("Note change detected:", change);
+      //console.log("Note change detected:", change);
+      //console.log("Note change detected:", change);
       await syncNoteToElasticsearch(change);
     });
 
     teamsChangeStream.on("change", async (change) => {
-      console.log("Team change detected:", change);
+      //console.log("Team change detected:", change);
+      //console.log("Team change detected:", change);
       await syncTeamToElasticsearch(change);
     });
 
     topicsChangeStream.on("change", async (change) => {
-      console.log("Topic change detected:", change);
+      //console.log("Topic change detected:", change);
+      //console.log("Topic change detected:", change);
       await syncTopicToElasticsearch(change);
     });
   })
@@ -56,12 +58,9 @@ async function syncTeamToElasticsearch(change) {
 
   try {
     if (operationType === "insert") {
-      console.log("fullDocument:", fullDocument);
-
-      // Takım belgesini Elasticsearch'e ekle veya güncelle
       await esClient.index({
-        index: "kbase1",
-        id: documentKey._id.toHexString(), // ObjectId'i string'e dönüştür
+        index: "kbase",
+        id: documentKey._id.toHexString(),
         body: {
           teamName: fullDocument.teamName,
           teamDescription: fullDocument.teamDescription,
@@ -72,30 +71,33 @@ async function syncTeamToElasticsearch(change) {
       updateDescription &&
       updateDescription.updatedFields
     ) {
-      console.log("günc açıklama", updateDescription);
-      // Takım belgesini güncelle
       const updatedFields = updateDescription.updatedFields;
 
-      // Güncellenen alanları al
       const { teamName, teamDescription } = updatedFields;
 
-      // Elasticsearch'e güncelleme işlemini gönder
       await esClient.update({
-        index: "kbase1",
-        id: documentKey._id.toHexString(), // ObjectId'i string'e dönüştür
+        index: "kbase",
+        id: documentKey._id.toHexString(),
         body: {
           doc: {
-            ...(teamName && { teamName }), // Eğer teamName değiştiyse güncelle
-            ...(teamDescription && { teamDescription }), // Eğer teamDescription değiştiyse güncelle
+            ...(teamName && { teamName }),
+            ...(teamDescription && { teamDescription }),
           },
         },
       });
     } else if (operationType === "delete") {
-      // Takım belgesini Elasticsearch'ten sil
-      await esClient.delete({
-        index: "kbase1",
-        id: documentKey._id.toHexString(), // ObjectId'i string'e dönüştür
-      });
+      try {
+        await esClient.delete({
+          index: "kbase",
+          id: documentKey._id.toHexString(),
+        });
+      } catch (error) {
+        if (error.meta.body.result === "not_found") {
+          console.log("Belge zaten silinmiş veya bulunamadı.");
+        } else {
+          console.error("Elasticsearch'te takım senkronizasyon hatası:", error);
+        }
+      }
     }
   } catch (error) {
     console.error("Error syncing team to Elasticsearch:", error);
@@ -108,7 +110,6 @@ async function syncNoteToElasticsearch(change) {
 
   try {
     if (operationType === "insert") {
-      console.log("fullDocumentNotes:", fullDocument);
       const cleanDescription = fullDocument.description?.replace(
         /<[^>]+>/g,
         ""
@@ -118,7 +119,7 @@ async function syncNoteToElasticsearch(change) {
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "kbase1",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           noteName: fullDocument.noteName,
@@ -131,15 +132,13 @@ async function syncNoteToElasticsearch(change) {
       updateDescription &&
       updateDescription.updatedFields
     ) {
-      // Not belgesini güncelle
       const updatedFields = updateDescription.updatedFields;
       const { noteName, description } = updatedFields;
 
       const cleanDescription = description?.replace(/<[^>]+>/g, "");
 
-      // Elasticsearch'e güncelleme işlemini gönder
       await esClient.update({
-        index: "kbase1",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           doc: {
@@ -149,11 +148,18 @@ async function syncNoteToElasticsearch(change) {
         },
       });
     } else if (operationType === "delete") {
-      // Not belgesini Elasticsearch'ten sil
-      await esClient.delete({
-        index: "kbase1",
-        id: documentKey._id.toHexString(),
-      });
+      try {
+        await esClient.delete({
+          index: "kbase",
+          id: documentKey._id.toHexString(),
+        });
+      } catch (error) {
+        if (error.meta.body.result === "not_found") {
+          console.log("Belge zaten silinmiş veya bulunamadı.");
+        } else {
+          console.error("Elasticsearch'te note senkronizasyon hatası:", error);
+        }
+      }
     }
   } catch (error) {
     console.error("Error syncing note to Elasticsearch:", error);
@@ -169,12 +175,14 @@ async function syncTopicToElasticsearch(change) {
       const jsonString = JSON.stringify(fullDocument._id);
       const encodedid = Buffer.from(jsonString).toString("base64");
 
+      console.log("insert", fullDocument);
+
       await esClient.index({
-        index: "kbase1",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           topicName: fullDocument.topicName,
-          children: [],
+          parentName: fullDocument.parent,
           topicId: encodedid,
         },
       });
@@ -185,22 +193,31 @@ async function syncTopicToElasticsearch(change) {
     ) {
       const updatedFields = updateDescription.updatedFields;
 
-      let { topicName } = updatedFields;
+      let { topicName, parent } = updatedFields;
 
       await esClient.update({
-        index: "kbase1",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           doc: {
             ...(topicName && { topicName }),
+            parentName: parent,
           },
         },
       });
     } else if (operationType === "delete") {
-      await esClient.delete({
-        index: "kbase1",
-        id: documentKey._id.toHexString(),
-      });
+      try {
+        await esClient.delete({
+          index: "kbase",
+          id: documentKey._id.toHexString(),
+        });
+      } catch (error) {
+        if (error.meta.body.result === "not_found") {
+          console.log("Belge zaten silinmiş veya bulunamadı.");
+        } else {
+          console.error("Elasticsearch'te topic senkronizasyon hatası:", error);
+        }
+      }
     }
   } catch (error) {
     console.error("Error syncing topic to Elasticsearch:", error);

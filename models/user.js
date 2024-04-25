@@ -1,6 +1,3 @@
-const {
-  transferDataToElasticSearch,
-} = require("../controllers/searchController.js");
 const mongoose = require("../db/db.js");
 
 var Schema = mongoose.Schema;
@@ -24,11 +21,6 @@ const userSchema = new Schema({
     ref: "Role",
     required: false,
   },
-  about: {
-    type: Schema.Types.ObjectId,
-    ref: "About",
-    required: false,
-  },
   favoritePosts: [
     {
       type: Schema.Types.ObjectId,
@@ -39,7 +31,7 @@ const userSchema = new Schema({
   favoriteTopic: [
     {
       type: Schema.Types.ObjectId,
-      ref: "Note",
+      ref: "Topic",
       required: false,
     },
   ],

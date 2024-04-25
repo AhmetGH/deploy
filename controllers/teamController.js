@@ -4,7 +4,8 @@ const Teammodel = require("../models/team");
 
 module.exports.getTeamMembers = async function (req, res) {
   try {
-    const pageSize = 3;
+    const pageSize = parseInt(req.query.pageSize);
+
     const pageNumber = parseInt(req.query.pageNumber || 1);
     const teamName = req.params.teamName;
 
@@ -131,7 +132,7 @@ module.exports.getTeams = async (req, res) => {
   try {
     const searchTerm = req.query.searchTerm || "";
     const pageNumber = parseInt(req.query.pageNumber) || 1;
-    const pageSize = 3;
+    const pageSize = parseInt(req.query.pageSize);
 
     const filter = {};
 
@@ -201,6 +202,43 @@ module.exports.getTeams = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Takımlar alınırken bir hata oluştu" });
+  }
+};
+module.exports.getTeamNames = async (req, res) => {
+  try {
+    const allTeams = await Teammodel.find({});
+    res.json({ allTeams });
+  } catch (error) {
+    return res.status(400).json(error);
+  }
+};
+module.exports.setTeamOnlyMembers = async (req, res) => {
+  const userId = req.user.id;
+
+  const teamId = req.body;
+
+  try {
+    const promises = teamId.map(async (item) => {
+      const members = await Usermodel.find({ team: item.toString() }).populate(
+        "team"
+      );
+      return members;
+    });
+
+    const teamMembers = await Promise.all(promises);
+    console.log(teamMembers);
+
+    const allMembers = teamMembers.flat(); // Tüm üyeleri tek bir diziye topla
+
+    const usersNotInTeamOnlyMember = await Usermodel.find({
+      _id: { $nin: allMembers.map((user) => user._id) },
+    }).populate("team");
+    const filteredMembers = usersNotInTeamOnlyMember.filter(member => member._id != userId);
+
+    return res.status(200).json({ filteredMembers });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    return res.status(400).json(error);
   }
 };
 
@@ -293,7 +331,7 @@ module.exports.updateTeamMember = async function (req, res) {
     if (!updatedStudent) {
       return res.status(404).json({
         message: "Kullanıcı güncellenemedi",
-        description: "user not found",
+        description: "kullanıcı bulunamadı",
       });
     }
 
@@ -340,7 +378,7 @@ module.exports.deleteTeams = async function (req, res) {
     const result = await Teammodel.deleteMany({ _id: { $in: teamIds } });
 
     res.status(200).json({
-      message: "Kullanıcılar başarıyla silindi",
+      message: "Takım silme başarılı",
       deletedCount: result.deletedCount,
     });
   } catch (err) {

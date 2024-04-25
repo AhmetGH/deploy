@@ -129,13 +129,16 @@
 var express = require("express");
 var router = express.Router();
 var teamController = require("../controllers/teamController");
+const authMiddleware = require("../middlewares");
 
 router.get("/allMembers/:teamName", teamController.allMembers);
+
+router.get("/teamNames",teamController.getTeamNames);
 
 router.get("/teamMates/:teamName", teamController.getTeamMembers);
 
 router.get("/", teamController.getTeams);
-
+router.post("/teamsOnlyMembers",authMiddleware ,teamController.setTeamOnlyMembers);
 router.post("/", teamController.createTeam);
 
 router.put("/teamMates/:teamName", teamController.updateTeamMember);

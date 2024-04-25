@@ -4,7 +4,7 @@ const noteRouter = require("./noteRoute.js");
 const aboutRouter = require("./aboutRoute.js");
 const settingsRoute = require("./settingsRoute.js");
 const authRoute = require("./authRoute.js");
-const topicRoute = require("./topicRoute.js");
+const topicRoute = require("./topicRoute.js")
 const adminRoute = require("./adminRoute.js");
 const searchRouter = require("./searchRoute.js");
 

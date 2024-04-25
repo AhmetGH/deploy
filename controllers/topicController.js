@@ -1,10 +1,12 @@
 const Topicmodel = require("../models/topic");
 const NoteModel = require("../models/note.js");
 const Usermodel = require("../models/user.js");
+const TeamModel = require("../models/team.js");
 const { v4: uuidv4 } = require("uuid");
-const crypto = require("crypto-js");
+
 const idDecoder = require("../iddecoder.js");
 const Topic = require("../models/topic");
+const { merge } = require("../routers/teamRoute.js");
 
 function convertToTree(data) {
   const tree = [];
@@ -16,6 +18,7 @@ function convertToTree(data) {
       children: [],
       id: node._id,
       type: "topic",
+      under: node.underElement,
     };
 
     if (node.children && node.children.length > 0) {
@@ -35,6 +38,7 @@ function convertToTree(data) {
         title: node.topicName,
         key: uuidv4(),
         id: node._id,
+        under: node.underElement,
       };
       return newNodeWithoutChildren;
     }
@@ -55,10 +59,70 @@ function convertToTree(data) {
   return tree;
 }
 
+// async function populateChildren(topicId) {
+//   const topicc = await Topicmodel.findById(topicId);
+//   if (!topicc) {
+//     return null;
+//   }
+//   try {
+//     await topicc.populate("children");
+//   } catch (error) {
+//     console.error("Populate Error:", error);
+//   }
+
+//   const populatedTopic = topicc.toJSON();
+//   console.log("populatedTopic:", populatedTopic);
+//   populatedTopic.children = await Promise.all(
+//     populatedTopic.children.map((child) => populateChildren(child._id))
+//   );
+
+//   return populatedTopic;
+// }
+module.exports.getTopicByIdWithChildren = async (req, res) => {
+  const topic = req.params.id;
+  try {
+    const topicChildren = await Topicmodel.findOne({ _id: topic }).populate(
+      "children"
+    );
+
+    res.json({ topicChildren });
+  } catch (error) {
+    return res.status(400).json(error);
+  }
+};
+async function getFavoritesWithChildren(userId) {
+  const userTopic = await Usermodel.findById(userId).populate({
+    path: "favoriteTopic",
+  });
+
+  for (const item of userTopic.favoriteTopic) {
+    item.underElement = true;
+  }
+
+  let result = [];
+
+  async function getChildren(topic) {
+    result.push(topic);
+    for (const childId of topic.children) {
+      const child = await Topicmodel.findById(childId);
+      if (child) {
+        await getChildren(child);
+      }
+    }
+  }
+
+  for (const topic of userTopic.favoriteTopic) {
+    await getChildren(topic);
+  }
+
+  return result;
+}
 module.exports.getFavoritesByUserId = async (req, res) => {
   const userId = req.user.id;
 
   try {
+    const favoritesWithChildren = await getFavoritesWithChildren(userId);
+    const tree = convertToTree(favoritesWithChildren);
     const user = await Usermodel.findById(userId)
       .populate({
         path: "favoritePosts",
@@ -78,8 +142,10 @@ module.exports.getFavoritesByUserId = async (req, res) => {
       key: uuidv4(),
       type: "note",
     }));
+    const mergedData = [...tree, ...favoriteNotes];
+    const favoriteTreeData = mergedData;
 
-    return res.status(200).json({ favoriteNotes });
+    return res.status(200).json({ favoriteTreeData });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
@@ -87,14 +153,18 @@ module.exports.getFavoritesByUserId = async (req, res) => {
 
 module.exports.createTopic = async (req, res) => {
   const owner = req.user.id;
-  const { topicName, children, underElement } = req.body;
-
+  const { topicName, children, underElement, parent, accessTeam, accessUser } =
+    req.body;
+  console.log("parent", parent);
   try {
     const newTopic = new Topicmodel({
       topicName,
       owner,
       children,
+      parent,
       underElement,
+      accessTeam,
+      accessUser,
     });
     const savedTopic = await newTopic.save();
 
@@ -154,8 +224,11 @@ const calculateTimeAgo = (date) => {
 
 module.exports.getTopicById = async (req, res) => {
   const topicId = req.params.topicId;
+  console.log("eeeeeeeeeeeee", topicId);
+  const id = idDecoder(topicId);
+  console.log("id", id);
   try {
-    const topic = await Topicmodel.findById(idDecoder(topicId)).populate({
+    const topic = await Topicmodel.findById(id).populate({
       path: "post",
       select: "id noteName operationDate",
       options: { sort: { operationDate: -1 } },
@@ -170,8 +243,8 @@ module.exports.getTopicById = async (req, res) => {
       noteId: btoa(JSON.stringify(post._id)).toString("base64"),
       operationDate: calculateTimeAgo(post.operationDate),
     }));
-
-    return res.json({ fullname: user.fullname, posts });
+    //console.log(posts);
+    return res.json({ fullname: user.fullname, posts: posts });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -180,10 +253,30 @@ module.exports.getTopicById = async (req, res) => {
 module.exports.getTopicTypeAsTreeData = async (req, res) => {
   const userId = req.user.id;
   try {
-    const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
-    const yourOwnTopics = await Topicmodel.find({ owner: userId });
+    const myTeam = await TeamModel.find({ members: userId }).populate(
+      "members"
+    );
+    myTopics = await Topicmodel.find({
+      accessUser: userId.toString(),
+    }).populate("accessUser");
 
-    const tree = convertToTree(allTopic);
+    //console.log(myTopics);
+    const promises = myTeam.map(async (item) => {
+      teamId = item._id;
+      const myTeamsTopic = await Topicmodel.find({
+        accessTeam: teamId.toString(),
+      }).populate("accessTeam");
+      return myTeamsTopic;
+    });
+    const myTeamsTopic1 = await Promise.all(promises);
+
+    const myTeamsTopics = myTeamsTopic1.flat();
+    //console.log(myTeamsTopics);
+
+    const yourOwnTopics = await Topicmodel.find({ owner: userId });
+    const mergedTopics = [...myTopics, ...myTeamsTopics];
+
+    const tree = convertToTree(mergedTopics);
     const treeData = JSON.stringify(tree, null, 2);
 
     const yourOwnTree = convertToTree(yourOwnTopics);
@@ -191,44 +284,93 @@ module.exports.getTopicTypeAsTreeData = async (req, res) => {
 
     res.json({
       treeData: treeData,
-      allTopic: allTopic,
+
       yourOwnTreeData: yourOwnTreeData,
-      yourOwnTopics: yourOwnTopics,
     });
+
+    // const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
   } catch (error) {
     return res.status(400).json(error);
   }
 };
-
-module.exports.AddFavoriteTopicAndNotes = async (req, res) => {
+module.exports.getTopic = async (req, res) => {
   const userId = req.user.id;
   try {
-    const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
+    const myTeam = await TeamModel.find({ members: userId }).populate(
+      "members"
+    );
+    myTopics = await Topicmodel.find({
+      accessUser: userId.toString(),
+    }).populate("accessUser");
+
+    //console.log(myTopics);
+    const promises = myTeam.map(async (item) => {
+      teamId = item._id;
+      const myTeamsTopic = await Topicmodel.find({
+        accessTeam: teamId.toString(),
+      }).populate("accessTeam");
+      return myTeamsTopic;
+    });
+    const myTeamsTopic1 = await Promise.all(promises);
+
+    const myTeamsTopics = myTeamsTopic1.flat();
+    //console.log(myTeamsTopics);
+
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
-
-    const tree = convertToTree(allTopic);
-    const treeData = JSON.stringify(tree, null, 2);
-
-    const yourOwnTree = convertToTree(yourOwnTopics);
-    const yourOwnTreeData = JSON.stringify(yourOwnTree, null, 2);
-
+    const mergedTopics = [...myTopics, ...myTeamsTopics];
     res.json({
-      treeData: treeData,
-      allTopic: allTopic,
-      yourOwnTreeData: yourOwnTreeData,
+      myTeamsTopics: mergedTopics,
       yourOwnTopics: yourOwnTopics,
     });
+
+    // const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
   } catch (error) {
     return res.status(400).json(error);
   }
 };
 
-module.exports.getTopicByIdWithChildren = async (req, res) => {
-  const topic = req.params.id;
+module.exports.AddFavoriteTopic = async (req, res) => {
+  const userId = req.user.id;
+  const topicId = idDecoder(req.body.topicId);
   try {
-    const topicChildren = await Topicmodel.findOne({ _id: topic }).populate(
-      "children"
+    const user = await Usermodel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (user.favoriteTopic.includes(topicId)) {
+      return res.status(400).json({ error: "Topic already in favorites" });
+    }
+    user.favoriteTopic.push(topicId);
+    await user.save();
+    return res.status(200).json({ message: "Note added to favorites" });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+module.exports.UnFavoriteTopic = async (req, res) => {
+  const userId = req.user.id;
+  const topicId = idDecoder(req.params.topicId);
+  try {
+    const user = await Usermodel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const updatedFavoriteTopics = user.favoriteTopic.filter(
+      (topic) => topic.toString() !== topicId.toString()
     );
+    user.favoriteTopic = updatedFavoriteTopics;
+    await user.save();
+    return res.status(200).json({ message: "Note removed to favorites" });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+module.exports.getTopicByIdWithSubTopic = async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const user = await Usermodel.findById(userId).populate("favoriteTopic");
 
     res.json({ topicChildren });
   } catch (error) {
@@ -251,24 +393,24 @@ module.exports.getUsersTopic = async (req, res) => {
 
 module.exports.updateTopicsChildren = async (req, res) => {
   const topicId = req.params.topicId;
-  const childrenid = req.params.childrenId;
-
+  const childrenId = req.params.childrenId;
   try {
-    const topics = await Topicmodel.findById({ _id: topicId });
-    const children = await Topicmodel.findById({ _id: childrenid });
+    const topic = await Topicmodel.findById(topicId);
+    const children = await Topicmodel.findById(childrenId);
 
-    topics.children.push(children._id);
-    const updatedTopic = await topics.save();
-
-    if (!updatedTopic) {
-      return res.status(404).json({ message: "Üye bulunamadı" });
+    if (!topic || !children) {
+      return res.status(404).json({ message: "Topic or Children not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Üye başarıyla güncellendi", updatedTopic });
+    topic.children.push(children._id);
+    children.parent = topic._id;
+
+    await Promise.all([topic.save(), children.save()]);
+
+    res.status(200).json({ message: "Successfully updated topic's children" });
   } catch (error) {
-    res.status(500).json(error);
+    console.error("Error updating topics children:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -279,7 +421,6 @@ module.exports.deleteTopicById = async (req, res) => {
   try {
     //const deleted = await Topicmodel.findByIdAndDelete(topicId);
     const isHaveChildren = await Topicmodel.findById(decodedTopicId);
-    console.log(isHaveChildren);
     if (isHaveChildren.post) {
       const posts = isHaveChildren.post;
 
@@ -299,13 +440,23 @@ module.exports.deleteTopicById = async (req, res) => {
     if (isHaveChildren1 && isHaveChildren.underElement) {
       isHaveChildren1.map(async (item) => {
         const topic = await Topicmodel.findById(item);
-        topic.underElement = true;
-        await topic.save();
+        console.log("topic delete:", topic);
+        if (topic) {
+          topic.parent = null;
+          topic.underElement = true;
+          await topic.save();
+        }
       });
 
       deleted = await Topicmodel.findByIdAndDelete(decodedTopicId);
     } else {
       isHaveMomy.children.push(isHaveChildren1);
+      isHaveChildren1.map(async (child) => {
+        const c = await Topicmodel.findById(child);
+        c.parent = isHaveMomy._id;
+        await c.save();
+      });
+
       updatedMomy = await isHaveMomy.save();
       deleted = await Topicmodel.findByIdAndDelete(decodedTopicId);
     }
@@ -321,4 +472,18 @@ module.exports.deleteTopicById = async (req, res) => {
     console.error("Silme işlemi hatası:", err);
     res.status(500).json({ error: "Bir hata oluştu, öğe silinemedi." });
   }
+};
+
+module.exports.getTopicAncestor = async (topicId) => {
+  const ancestors = [];
+  let currentTopic = await Topicmodel.findById(topicId);
+
+  while (currentTopic && currentTopic.parent) {
+    currentTopic = await Topicmodel.findById(currentTopic.parent);
+    if (currentTopic) {
+      ancestors.push(currentTopic);
+    }
+  }
+
+  return ancestors;
 };

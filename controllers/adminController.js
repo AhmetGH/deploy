@@ -2,7 +2,7 @@ const userModel = require("../models/user");
 const Rolemodel = require("../models/role");
 module.exports.getUsers = async function (req, res) {
   try {
-    const pageSize = 3;
+    const pageSize = parseInt(req.query.pageSize);
     const pageNumber = parseInt(req.query.pageNumber || 1);
 
     const sortField = req.query.sortBy;
