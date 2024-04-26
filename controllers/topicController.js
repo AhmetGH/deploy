@@ -95,9 +95,9 @@ async function getFavoritesWithChildren(userId) {
     path: "favoriteTopic",
   });
 
-  for (const item of userTopic.favoriteTopic) {
-    item.underElement = true;
-  }
+  // for (const item of userTopic.favoriteTopic) {
+  //   item.underElement = true;
+  // }
 
   let result = [];
 
