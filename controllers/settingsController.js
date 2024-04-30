@@ -33,12 +33,12 @@ module.exports.updateUserSettings = async (req, res) => {
       if (!isPasswordCorrect) {
         return res
           .status(400)
-          .json({ message: "Şuanki şifreniz yanlış girdiniz" });
+          .json({ message: "Mevcut şifrenizi yanlış girdiniz!" });
       }
 
       if (currentPass === newPass) {
         return res.status(400).json({
-          message: "Yeni şifreniz eski şifrenizle aynı olamaz",
+          message: "Yeni şifreniz mevcut şifrenizle aynı olamaz!",
         });
       }
 

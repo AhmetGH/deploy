@@ -12,7 +12,7 @@ router.get(
 router.get("/", authMiddleware, topicController.getTopicTypeAsTreeData);
 router.post("/", authMiddleware, topicController.createTopic);
 
-
+router.post("/main/eren", topicController.mainTopicCheck);
 router.put("/", authMiddleware, topicController.updateTopic);
 
 router.get("/favorites", authMiddleware, topicController.getFavoritesByUserId);
@@ -22,7 +22,6 @@ router.delete(
   authMiddleware,
   topicController.UnFavoriteTopic
 );
-
 
 router.get("/topics//alltopics", authMiddleware, topicController.getTopic);
 
