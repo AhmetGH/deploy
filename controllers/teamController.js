@@ -133,77 +133,159 @@ module.exports.getTeams = async (req, res) => {
     const searchTerm = req.query.searchTerm || "";
     const pageNumber = parseInt(req.query.pageNumber) || 1;
     const pageSize = parseInt(req.query.pageSize);
+    const userId = req.user.id; // Kullanıcının kimliğini al
 
-    const filter = {};
+    const user = await Usermodel.findById(userId).populate("role");
+    if (!user) {
+      return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+    }
 
-    if (searchTerm) {
-      filter.$or = [
-        { teamName: { $regex: new RegExp(searchTerm, "i") } },
-        // { description: { $regex: new RegExp(searchTerm, "i") } }
+    if (user.role.name === "admin") {
+      const filter = {};
+
+      if (searchTerm) {
+        filter.$or = [{ teamName: { $regex: new RegExp(searchTerm, "i") } }];
+      }
+
+      const sortField = req.query.sortBy;
+      const sortOrder = req.query.order || "asc";
+
+      let sortOptions = {};
+
+      if (sortField) {
+        sortOptions[sortField] = sortOrder === "desc" ? -1 : 1;
+      } else {
+        sortOptions["_id"] = sortOrder === "desc" ? -1 : 1;
+      }
+
+      const sortStage =
+        Object.keys(sortOptions).length > 0 ? { $sort: sortOptions } : {};
+
+      const pipeline = [
+        {
+          $lookup: {
+            from: "users",
+            localField: "members",
+            foreignField: "_id",
+            as: "members",
+          },
+        },
+        {
+          $match: filter,
+        },
+        sortStage,
+        {
+          $project: {
+            teamName: 1,
+            teamDescription: 1,
+            memberCount: { $size: "$members" },
+          },
+        },
+        sortStage,
+        {
+          $facet: {
+            teams: [
+              { $skip: (pageNumber - 1) * pageSize },
+              { $limit: pageSize },
+            ],
+            totalRecords: [{ $count: "total" }],
+          },
+        },
       ];
-    }
 
-    const sortField = req.query.sortBy;
-    const sortOrder = req.query.order || "asc";
+      const result = await Teammodel.aggregate(pipeline);
 
-    let sortOptions = {};
-
-    if (sortField) {
-      sortOptions[sortField] = sortOrder === "desc" ? -1 : 1;
+      const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
+      const teams = result[0]?.teams ?? [];
+      const editedTeams = teams.map((team) => ({
+        key: team._id,
+        teamName: team.teamName,
+        teamDescription: team.teamDescription,
+        memberCount: team.memberCount,
+      }));
+      return res.status(200).json({
+        totalRecords,
+        editedTeams,
+      });
     } else {
-      sortOptions["_id"] = sortOrder === "desc" ? -1 : 1;
+      const userTeams = await Teammodel.find({ members: userId });
+
+      const userTeamIds = userTeams.map((team) => team._id);
+
+      const filter = {
+        _id: { $in: userTeamIds },
+      };
+
+      if (searchTerm) {
+        filter.$or = [{ teamName: { $regex: new RegExp(searchTerm, "i") } }];
+      }
+
+      const sortField = req.query.sortBy;
+      const sortOrder = req.query.order || "asc";
+
+      let sortOptions = {};
+
+      if (sortField) {
+        sortOptions[sortField] = sortOrder === "desc" ? -1 : 1;
+      } else {
+        sortOptions["_id"] = sortOrder === "desc" ? -1 : 1;
+      }
+
+      const sortStage =
+        Object.keys(sortOptions).length > 0 ? { $sort: sortOptions } : {};
+
+      const pipeline = [
+        {
+          $lookup: {
+            from: "users",
+            localField: "members",
+            foreignField: "_id",
+            as: "members",
+          },
+        },
+        {
+          $match: filter,
+        },
+        sortStage,
+        {
+          $project: {
+            teamName: 1,
+            teamDescription: 1,
+            memberCount: { $size: "$members" },
+          },
+        },
+        sortStage,
+        {
+          $facet: {
+            teams: [
+              { $skip: (pageNumber - 1) * pageSize },
+              { $limit: pageSize },
+            ],
+            totalRecords: [{ $count: "total" }],
+          },
+        },
+      ];
+
+      const result = await Teammodel.aggregate(pipeline);
+
+      const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
+      const teams = result[0]?.teams ?? [];
+      const editedTeams = teams.map((team) => ({
+        key: team._id,
+        teamName: team.teamName,
+        teamDescription: team.teamDescription,
+        memberCount: team.memberCount,
+      }));
+      return res.status(200).json({
+        totalRecords,
+        editedTeams,
+      });
     }
-
-    const sortStage =
-      Object.keys(sortOptions).length > 0 ? { $sort: sortOptions } : {};
-
-    const pipeline = [
-      {
-        $lookup: {
-          from: "users",
-          localField: "members",
-          foreignField: "_id",
-          as: "members",
-        },
-      },
-      {
-        $match: filter,
-      },
-      sortStage,
-      {
-        $project: {
-          teamName: 1,
-          teamDescription: 1,
-          memberCount: { $size: "$members" },
-        },
-      },
-      sortStage, // Sıralama aşamasını pipeline'a ekle
-      {
-        $facet: {
-          teams: [{ $skip: (pageNumber - 1) * pageSize }, { $limit: pageSize }],
-          totalRecords: [{ $count: "total" }],
-        },
-      },
-    ];
-
-    const result = await Teammodel.aggregate(pipeline);
-
-    const totalRecords = result[0]?.totalRecords?.[0]?.total ?? 0;
-    const teams = result[0]?.teams ?? [];
-    const editedTeams = teams.map((team) => ({
-      key: team._id,
-      teamName: team.teamName,
-      teamDescription: team.teamDescription,
-      memberCount: team.memberCount,
-    }));
-    res.status(200).json({
-      totalRecords,
-      editedTeams,
-    });
   } catch (error) {
     res.status(500).json({ message: "Takımlar alınırken bir hata oluştu" });
   }
 };
+
 module.exports.getTeamNames = async (req, res) => {
   try {
     const allTeams = await Teammodel.find({});
@@ -233,7 +315,9 @@ module.exports.setTeamOnlyMembers = async (req, res) => {
     const usersNotInTeamOnlyMember = await Usermodel.find({
       _id: { $nin: allMembers.map((user) => user._id) },
     }).populate("team");
-    const filteredMembers = usersNotInTeamOnlyMember.filter(member => member._id != userId);
+    const filteredMembers = usersNotInTeamOnlyMember.filter(
+      (member) => member._id != userId
+    );
 
     return res.status(200).json({ filteredMembers });
   } catch (error) {
@@ -372,9 +456,16 @@ module.exports.updateTeam = async function (req, res) {
 module.exports.deleteTeams = async function (req, res) {
   try {
     const teamIds = req.body.teamIds;
+
     if (!teamIds || !Array.isArray(teamIds) || teamIds.length === 0) {
       return res.status(400).json({ message: "Geçersiz kullanıcı kimlikleri" });
     }
+
+    await Usermodel.updateMany(
+      { team: { $in: teamIds } },
+      { $pull: { team: { $in: teamIds } } }
+    );
+
     const result = await Teammodel.deleteMany({ _id: { $in: teamIds } });
 
     res.status(200).json({

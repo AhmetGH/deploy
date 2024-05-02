@@ -137,7 +137,7 @@ router.get("/teamNames",teamController.getTeamNames);
 
 router.get("/teamMates/:teamName", teamController.getTeamMembers);
 
-router.get("/", teamController.getTeams);
+router.get("/", authMiddleware,teamController.getTeams);
 router.post("/teamsOnlyMembers",authMiddleware ,teamController.setTeamOnlyMembers);
 router.post("/", teamController.createTeam);
 

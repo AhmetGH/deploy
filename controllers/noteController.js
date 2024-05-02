@@ -192,12 +192,15 @@ module.exports.updateNote = async (req, res) => {
 
 module.exports.createNote = async (req, res) => {
   const userId = req.user.id;
+  const {accessTeam, accessUser } =req.body;
   try {
     const newNote = new Notemodel({
       noteName: "Untitled",
       members: userId,
       isPublic: false,
       description: "",
+      accessTeam,
+      accessUser,
     });
 
     const savedNote = await newNote.save();

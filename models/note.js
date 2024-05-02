@@ -22,6 +22,21 @@ const noteSchema = new Schema({
     default: Date.now,
     required: true,
   },
+  accessTeam: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      required: false,
+    },
+  ],
+  accessUser: [
+    {
+
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+  ],
   members: [{ type: Schema.Types.ObjectId, ref: "User", required: false }],
 });
 
