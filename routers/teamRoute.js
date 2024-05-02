@@ -133,12 +133,20 @@ const authMiddleware = require("../middlewares");
 
 router.get("/allMembers/:teamName", teamController.allMembers);
 
-router.get("/teamNames",teamController.getTeamNames);
+router.get("/teamNames", teamController.getTeamNames);
 
-router.get("/teamMates/:teamName", teamController.getTeamMembers);
+router.get(
+  "/teamMates/:teamName",
+  authMiddleware,
+  teamController.getTeamMembers
+);
 
-router.get("/", authMiddleware,teamController.getTeams);
-router.post("/teamsOnlyMembers",authMiddleware ,teamController.setTeamOnlyMembers);
+router.get("/", authMiddleware, teamController.getTeams);
+router.post(
+  "/teamsOnlyMembers",
+  authMiddleware,
+  teamController.setTeamOnlyMembers
+);
 router.post("/", teamController.createTeam);
 
 router.put("/teamMates/:teamName", teamController.updateTeamMember);

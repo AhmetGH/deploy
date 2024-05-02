@@ -347,11 +347,10 @@ const calculateTimeAgo = (date) => {
   }
 };
 module.exports.mainTopicCheck = async (req, res) => {
-  let underId=""
-  if( req.body.selectedId){
+  let underId = "";
+  if (req.body.selectedId) {
     underId = req.body.selectedId;
-  }else if( req.body.topicId)
-  {
+  } else if (req.body.topicId) {
     underId = idDecoder(req.body.topicId);
   }
   const selectedTeams = req.body.selectedTeams;
@@ -370,7 +369,7 @@ module.exports.mainTopicCheck = async (req, res) => {
     });
 
     const teamMembers = await Promise.all(promises2);
-    console.log(teamMembers);
+    //console.log(teamMembers);
 
     const allMembers = teamMembers.flat();
 
@@ -397,7 +396,7 @@ module.exports.mainTopicCheck = async (req, res) => {
     });
 
     const differentUsers = await Promise.all(promises1);
-    console.log("wssssssssssssssssssssssssssssss", differentUsers1);
+
     return res.json({
       differentUsers: differentUsers,
       differentTeams: differentTeams,
@@ -410,11 +409,13 @@ module.exports.getTopicById = async (req, res) => {
   const topicId = req.params.topicId;
 
   const id = idDecoder(topicId);
-
+  const userId = req.user.id;
   try {
+    const topicOwner = await Topicmodel.findById(id, "owner");
+    console.log(topicOwner.owner.toString());
     const topic = await Topicmodel.findById(id).populate({
       path: "post",
-      select: "id noteName operationDate",
+      select: "id noteName operationDate accessTeam accessUser owner",
       options: { sort: { operationDate: -1 } },
     });
 
@@ -422,13 +423,52 @@ module.exports.getTopicById = async (req, res) => {
     if (!topic) {
       return res.status(404).json({ message: "Konu bulunamadı" });
     }
+
+    const myTeam = await TeamModel.find({ members: userId }).populate(
+      "members"
+    );
+
+    const myTeamIds = myTeam.map((item) => item._id.toString());
+
+    mergedIds = [...myTeamIds, userId];
+    console.log(mergedIds);
     const posts = topic.post.map((post) => ({
+      id: post._id,
       noteName: post.noteName,
       noteId: btoa(JSON.stringify(post._id)).toString("base64"),
       operationDate: calculateTimeAgo(post.operationDate),
+      accessTeam: post.accessTeam,
+      accessUser: post.accessUser,
+      owner:post.owner,
     }));
+    console.log("ttttttttttttttttttttttttttttttttt",posts);
+    const matchingPosts = [];
 
-    return res.json({ fullname: user.fullname, posts: posts });
+    if (mergedIds.includes(topicOwner.owner.toString())) {
+      console.log("girdim")
+      posts.forEach((post) => {
+        matchingPosts.push(post);
+      });
+    } else {
+      console.log("burayagirr")
+      posts.forEach((post) => {
+       
+        if (
+          Array.isArray(post.accessTeam) && 
+          post.accessTeam.some(team => mergedIds.includes(team.toString())) ||
+          Array.isArray(post.accessUser) &&
+          post.accessUser.some(user => mergedIds.includes(user.toString())) ||
+          mergedIds.includes(post.owner.toString())
+        ) {
+          console.log("gir");
+          matchingPosts.push(post);
+        }
+      });
+    }
+
+    console.log("yyyyyyyyyyy",matchingPosts);
+
+    return res.json({ fullname: user.fullname, posts: matchingPosts });
   } catch (error) {
     return res.status(400).json(error);
   }

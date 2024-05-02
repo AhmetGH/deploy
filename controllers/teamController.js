@@ -4,10 +4,19 @@ const Teammodel = require("../models/team");
 
 module.exports.getTeamMembers = async function (req, res) {
   try {
+    const userId = req.user.id;
+
+    const teamName = req.params.teamName;
+
+    const team = await Teammodel.findOne({ teamName, members: userId });
+
+    if (!team) {
+      return res.redirect("/forbidden");
+    }
+
     const pageSize = parseInt(req.query.pageSize);
 
     const pageNumber = parseInt(req.query.pageNumber || 1);
-    const teamName = req.params.teamName;
 
     const sortField = req.query.sortBy;
     const sortOrder = req.query.order || "asc";
