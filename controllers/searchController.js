@@ -174,19 +174,44 @@ module.exports.searchSuggestions = async (req, res) => {
             minimum_should_match: 1,
           },
         },
+        highlight: {
+          fields: {
+            teamName: {},
+            teamDescription: {},
+            noteName: {},
+            noteDescription: {},
+            topicName: {},
+          },
+        },
       },
     });
 
-    const hits = result.hits.hits.map((hit) => ({
-      teamName: hit._source.teamName,
-      noteName: hit._source.noteName,
-      noteId: hit._source.noteId,
-      teamDescription: hit._source.teamDescription,
-      noteDescription: hit._source.noteDescription,
-      topicName: hit._source.topicName,
-      parentName: hit._source.parentName,
-      topicId: hit._source.topicId,
-    }));
+    const hits = result.hits.hits.map((hit) => {
+      const highlights = hit.highlight || {};
+      console.log("highlights:", highlights);
+      return {
+        teamName: highlights.teamDescription
+          ? hit._source.teamName
+          : highlights.teamName
+          ? hit._source.teamName
+          : undefined,
+        teamDescription: highlights.teamDescription
+          ? hit._source.teamDescription
+          : undefined,
+        noteName: highlights.noteDescription
+          ? hit._source.noteName
+          : highlights.noteName
+          ? hit._source.noteName
+          : undefined,
+        noteDescription: highlights.noteDescription
+          ? hit._source.noteDescription
+          : undefined,
+        topicName: highlights.topicName ? hit._source.topicName : undefined,
+        parentName: hit._source.parentName,
+        noteId: hit._source.noteId,
+        topicId: hit._source.topicId,
+      };
+    });
 
     res.json(hits);
   } catch (error) {
