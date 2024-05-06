@@ -1,16 +1,13 @@
 const Notemodel = require("../models/note");
 const Usermodel = require("../models/user");
-const TeamModel = require("../models/team.js");
+
 const idDecoder = require("../iddecoder.js");
 
 module.exports.getNotesToHome = async (req, res) => {
-  userId = req.user.id;
   try {
     const allnotes = await Notemodel.find({ isPublic: true })
       .populate("noteName")
       .sort({ _id: -1 });
-
-    const user = await Usermodel.findById({ _id: userId }).select("fullname");
 
     const allNotesData = allnotes.map((note) => {
       const jsonString = JSON.stringify(note._id);
@@ -19,38 +16,9 @@ module.exports.getNotesToHome = async (req, res) => {
         noteName: note.noteName,
         noteId: encodedid,
         noteDetails: note.description,
-        accessTeam: note.accessTeam,
-        accessUser: note.accessUser,
-        fullName: user.fullname,
-        owner: note.owner,
-        operationDate: calculateTimeAgo(note.operationDate),
       };
     });
-    const myTeam = await TeamModel.find({ members: userId }).populate(
-      "members"
-    );
-
-    const myTeamIds = myTeam.map((item) => item._id.toString());
-    mergedIds = [...myTeamIds, userId];
-    const matchingPosts = [];
-
-    allNotesData.forEach((post) => {
-      if (
-        (Array.isArray(post.accessTeam) &&
-          post.accessTeam.some((team) =>
-            mergedIds.includes(team.toString())
-          )) ||
-        (Array.isArray(post.accessUser) &&
-          post.accessUser.some((user) =>
-            mergedIds.includes(user.toString())
-          )) ||
-        mergedIds.includes(post.owner.toString())
-      ) {
-        matchingPosts.push(post);
-      }
-    });
-
-    res.json({ allNotes: matchingPosts });
+    res.json({ allNotes: allNotesData });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -224,10 +192,9 @@ module.exports.updateNote = async (req, res) => {
 
 module.exports.createNote = async (req, res) => {
   const userId = req.user.id;
-  const { accessTeam, accessUser } = req.body;
+  const {accessTeam, accessUser } =req.body;
   try {
     const newNote = new Notemodel({
-      owner: userId,
       noteName: "Untitled",
       members: userId,
       isPublic: false,
@@ -235,6 +202,7 @@ module.exports.createNote = async (req, res) => {
       accessTeam,
       accessUser,
     });
+
     const savedNote = await newNote.save();
 
     const jsonString = JSON.stringify(savedNote._id);

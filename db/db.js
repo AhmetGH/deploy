@@ -6,11 +6,11 @@ const connection =
   "mongodb+srv://ahmetgocmen07:Cfk9tY27nvBaFzxS@ahmet.shuruci.mongodb.net/?retryWrites=true&w=majority&appName=ahmet";
 
 const esClient = new Client({
-  node: "https://6f91b4a351d143e59e1f34bbb8e2c557.europe-west3.gcp.cloud.es.io:443",
+  node: "https://c2e866460775493583daa3362fe3ad16.us-central1.gcp.cloud.es.io:443",
   auth: {
     apiKey: {
-      id: "0ostL48BKT31eWBTT2iz", // Replace with your actual API key ID
-      api_key: "48qJr4a7QHuPpPmS5sVqIA", // Replace with your actual API key secret
+      id: "e-arLo8BLQg_qDIiZBss", // Replace with your actual API key ID
+      api_key: "Fp2e6M6gTXOUCywDgzIxgQ", // Replace with your actual API key secret
     },
   },
 });
@@ -59,12 +59,11 @@ async function syncTeamToElasticsearch(change) {
   try {
     if (operationType === "insert") {
       await esClient.index({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           teamName: fullDocument.teamName,
           teamDescription: fullDocument.teamDescription,
-          teamMembers: fullDocument.members.map((member) => member.toString()),
         },
       });
     } else if (
@@ -74,23 +73,22 @@ async function syncTeamToElasticsearch(change) {
     ) {
       const updatedFields = updateDescription.updatedFields;
 
-      const { teamName, teamDescription, members } = updatedFields;
+      const { teamName, teamDescription } = updatedFields;
 
       await esClient.update({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           doc: {
             ...(teamName && { teamName }),
             ...(teamDescription && { teamDescription }),
-            ...(members && { teamMembers: members }),
           },
         },
       });
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: "kbase",
           id: documentKey._id.toHexString(),
         });
       } catch (error) {
@@ -121,19 +119,12 @@ async function syncNoteToElasticsearch(change) {
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           noteName: fullDocument.noteName,
           noteDescription: cleanDescription,
           noteId: encodedid,
-          noteAccessTeam: fullDocument.accessTeam.map((team) =>
-            team.toString()
-          ), // Assuming accessTeam is an array of ObjectIds
-          noteAccessUser: fullDocument.accessUser.map((user) =>
-            user.toString()
-          ),
-          members: fullDocument.members.map((user) => user.toString()),
         },
       });
     } else if (
@@ -142,28 +133,24 @@ async function syncNoteToElasticsearch(change) {
       updateDescription.updatedFields
     ) {
       const updatedFields = updateDescription.updatedFields;
-      const { noteName, description, accessTeam, accessUser, members } =
-        updatedFields;
+      const { noteName, description } = updatedFields;
 
       const cleanDescription = description?.replace(/<[^>]+>/g, "");
 
       await esClient.update({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           doc: {
             ...(noteName && { noteName }),
             ...(description && { noteDescription: cleanDescription }),
-            ...(accessTeam && { noteAccessTeam: accessTeam }),
-            ...(accessUser && { noteAccessUser: accessUser }),
-            ...(members && { members: members }),
           },
         },
       });
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: "kbase",
           id: documentKey._id.toHexString(),
         });
       } catch (error) {
@@ -191,15 +178,12 @@ async function syncTopicToElasticsearch(change) {
       console.log("insert", fullDocument);
 
       await esClient.index({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           topicName: fullDocument.topicName,
           parentName: fullDocument.parent,
           topicId: encodedid,
-          owner: fullDocument.owner.toString(),
-          accessTeam: fullDocument.accessTeam.map((team) => team.toString()), // Assuming accessTeam is an array of ObjectIds
-          accessUser: fullDocument.accessUser.map((user) => user.toString()),
         },
       });
     } else if (
@@ -209,26 +193,22 @@ async function syncTopicToElasticsearch(change) {
     ) {
       const updatedFields = updateDescription.updatedFields;
 
-      let { topicName, parent, owner, accessTeam, accessUser } = updatedFields;
-      console.log("updatedFields", updatedFields);
+      let { topicName, parent } = updatedFields;
 
       await esClient.update({
-        index: "bilgi",
+        index: "kbase",
         id: documentKey._id.toHexString(),
         body: {
           doc: {
             ...(topicName && { topicName }),
-            ...(parent && { parentName: parent }),
-            ...(owner && { owner }),
-            ...(accessTeam && { accessTeam }),
-            ...(accessUser && { accessUser }),
+            parentName: parent,
           },
         },
       });
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: "kbase",
           id: documentKey._id.toHexString(),
         });
       } catch (error) {

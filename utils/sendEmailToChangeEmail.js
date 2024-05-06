@@ -1,22 +1,17 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
-
-const sendEmail = async (to, subject, url) => {
-
+const sendEmailToChangeEmail = async (to, url) => {
   const transporter = nodemailer.createTransport({
-    service:"gmail",
+    service: "gmail",
     auth: {
       user: "erencpp@gmail.com",
-      pass: "uzqd mxyr tcuu ktlm"
-    }
+      pass: "uzqd mxyr tcuu ktlm",
+    },
   });
-  var content= ""
 
-  if(subject === "Şifre sıfırlama")
-    content = "Şifrenizi sıfırlamak için butona basınız!"
-  else
-    content = "Sisteme kayıt oldunuz şimdi şifrenizi oluşturun!"
-  console.log(content)
+  const subject = "Confirm Email Change Request";
+  const content =
+    "For your security, please confirm if you requested to change your email address.";
 
   const htmlEmail = `
   <!DOCTYPE html>
@@ -89,16 +84,16 @@ const sendEmail = async (to, subject, url) => {
           </tr>
           <tr>
       
-              <td  colspan="2" style="padding-left: 86px;"> ipsum, dolor sit amet</td>
+              <td  colspan="2" style="padding-left: 86px;">${content}</td>
           </tr>
           <tr>        
               <td colspan="2"  style="padding-left: 86px; padding-top: 50px;">
-                  <a href="${url}" style="display:inline-block; padding: 10px 40px 10px 40px; background-color: #0057D9; color: #ffffff; border-radius: 8px; text-decoration: none;">Şifre oluştur</a>
+                  <a href="${url}" style="display:inline-block; padding: 10px 40px 10px 40px; background-color: #0057D9; color: #ffffff; border-radius: 8px; text-decoration: none;">Confirm</a>
               </td>
           </tr>
           <tr>
               <td colspan="2"  style="padding-left: 86px; padding-top: 86px;padding-bottom: 106px; font-family:SF Pro Text; font-size: 16px; font-style: normal;font-weight: 400;">
-                  Excepteur sint occaecat cupidatat, Non proident
+              If you did not request this change or if you have changed your mind, ignore this message 
               </td>
           </tr>
           <tr>
@@ -108,9 +103,9 @@ const sendEmail = async (to, subject, url) => {
               font-weight: 400;
               line-height: 22px; 
               padding-top:10px ;">
-                  <div style="float: left;">Reprehenderit in voluptate velit esse <b>HR HUB</b></div>
-                  <div style="float: right;">Lorem and Ipsum &bull; Dolor Sit Amet</div>
-                  <div style="clear: both;"></div>
+                <div style="float: left; width:400px">VENHANCER BİLİŞİM VE DANIŞMALIK HİZMETLERİ SANAYİ VE TİCARET A.Ş.</div>
+                <div style="float: right;">This is an informational e-mail.&bull; HR HUB</div>
+                <div style="clear: both;"></div>
               </td>
           </tr>
       </table>
@@ -121,12 +116,11 @@ const sendEmail = async (to, subject, url) => {
     `;
 
   const mailOptions = {
-    from: 'erencpp@gmail.com', 
-    to: to, 
-    subject: subject, 
-    html: htmlEmail
+    from: "erencpp@gmail.com",
+    to: to,
+    subject: subject,
+    html: htmlEmail,
   };
-
 
   try {
     await transporter.sendMail(mailOptions);
@@ -135,4 +129,4 @@ const sendEmail = async (to, subject, url) => {
   }
 };
 
-module.exports = sendEmail;
+module.exports = sendEmailToChangeEmail;

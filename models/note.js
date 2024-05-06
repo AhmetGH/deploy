@@ -31,16 +31,12 @@ const noteSchema = new Schema({
   ],
   accessUser: [
     {
+
       type: Schema.Types.ObjectId,
       ref: "User",
       required: false,
     },
   ],
-  owner: {
-    type: Schema.Types.ObjectId,
-    ref: "User",
-    required: false,
-  },
   members: [{ type: Schema.Types.ObjectId, ref: "User", required: false }],
 });
 

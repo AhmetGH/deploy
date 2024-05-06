@@ -1,5 +1,7 @@
 const Usermodel = require("../models/user");
 const bcrypt = require("bcrypt");
+const sendEmailToChangeEmail = require("../utils/sendEmailToChangeEmail");
+const jwt = require("jsonwebtoken");
 
 module.exports.userSettings = async (req, res) => {
   try {
@@ -10,6 +12,17 @@ module.exports.userSettings = async (req, res) => {
   } catch (error) {
     res.status(500).json(error);
   }
+};
+
+module.exports.updateUserEmail = async (req, res) => {
+  const { token } = req.query;
+  const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+  await Usermodel.findByIdAndUpdate(
+    decoded.userID,
+    { email: decoded.newEmail },
+    { new: true }
+  );
+  return res.redirect(`${process.env.FRONT_END_URL}/settings`);
 };
 
 module.exports.updateUserSettings = async (req, res) => {
@@ -64,14 +77,20 @@ module.exports.updateUserSettings = async (req, res) => {
 
     if (email) {
       try {
-        const user_profile = await Usermodel.findByIdAndUpdate(
-          req.user.id,
-          { email },
-          { new: true }
-        );
+        const user_profile = await Usermodel.findById(req.user.id);
+
         if (!user_profile)
           return res.status(400).json({ message: "Kullanıcı güncellenemedi" });
-        return res.status(200).json(user_profile);
+        const token = jwt.sign(
+          { userID: req.user.id, newEmail: email },
+          process.env.EMAIL_SECRET,
+          {
+            expiresIn: "15d",
+          }
+        );
+        const url = `${process.env.BACK_END_URL}/settings/changeEmail?token=${token}`;
+        await sendEmailToChangeEmail(email, url);
+        return res.status(200);
       } catch (error) {
         return res.status(500).json({
           message: "Üye bilgileri güncellenirken bir hata oluştu",

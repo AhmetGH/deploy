@@ -6,7 +6,7 @@ var settingsController = require("../controllers/settingsController");
 router.get("/", authMiddleware, settingsController.userSettings);
 
 router.put("/", authMiddleware, settingsController.updateUserSettings);
-
+router.get("/changeEmail", settingsController.updateUserEmail);
 router.get("/profile", authMiddleware, settingsController.userProfile);
 
 router.put("/profile", authMiddleware, settingsController.updateUserProfile);
