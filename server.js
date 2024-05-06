@@ -22,14 +22,13 @@ require("./routers/rooterManager.js")(app);
 
 const userModel = require("./models/user");
 
-app.get("/users",authMiddleware, async (req, res) => {
-  const userId=req.user.id;
-  console.log("oo",userId)
+app.get("/users", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
   try {
     const users = await userModel.find().populate("role", "name");
     const allUsers1 = await userModel.find({});
-    const allUsers=allUsers1.filter(member => member._id != userId);
-    
+    const allUsers = allUsers1.filter((member) => member._id != userId);
+
     const usersWithRoleNames = users.map((user) => ({
       _id: user._id,
       email: user.email,

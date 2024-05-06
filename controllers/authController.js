@@ -1,11 +1,9 @@
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const userModel = require("../models/user");
-const sendEmail = require("../utils/sendEmailToChangePassword");
+const sendEmail = require("../utils/sendEmail");
 const roleModel = require("../models/role");
 const teamModel = require("../models/team");
-const sendEmailToChangePassword = require("../utils/sendEmailToChangePassword");
-const sendEmailToSetPassword = require("../utils/sendEmailToSetPassword");
 
 module.exports.verifyToken = (req, res) => {
   return res.sendStatus(200);
@@ -87,7 +85,11 @@ module.exports.userRegister = async (req, res) => {
     await newUser.save();
 
     const url = `${process.env.BACK_END_URL}/auth/verify?token=${token}`;
-    await sendEmailToSetPassword(email, url);
+    await sendEmail(
+      email,
+      "Şifrenizi belirlemek için bağlantıya tıklayınız.",
+      url
+    );
 
     return res.status(200).json({
       message: "Kullanıcı ekleme başarılı!",
@@ -143,7 +145,11 @@ module.exports.userRegisterForTeam = async (req, res) => {
     await newUser.save();
 
     const url = `${process.env.BACK_END_URL}/auth/verify?token=${token}`;
-    await sendEmailToSetPassword(email, url);
+    await sendEmail(
+      email,
+      "Şifrenizi belirlemek için bağlantıya tıklayınız.",
+      url
+    );
 
     res.sendStatus(200);
   } catch (error) {
@@ -189,7 +195,7 @@ module.exports.forgotPassword = async (req, res) => {
 
     const url = `${process.env.BACK_END_URL}/auth/verify-forget?token=${token}`;
 
-    await sendEmailToChangePassword(email, url);
+    await sendEmail(email, "Şifre sıfırlama", url);
 
     res.status(200).json({
       message: "Şifre sıfırlama bağlantısı e-posta adresinize gönderildi",
