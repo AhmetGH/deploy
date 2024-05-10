@@ -132,9 +132,9 @@ module.exports.searchSuggestions = async (req, res) => {
     const { query } = req.query;
     console.log("userId:", userId);
 
-    const user = await userModel.findById(userId).populate("team"); // Populate the user's teams
+    const user = await userModel.findById(userId).populate("team");
 
-    const userTeams = user.team.map((team) => team._id); // Extract team IDs
+    const userTeams = user.team.map((team) => team._id);
 
     const result = await esClient.search({
       index: "bilgi",
@@ -188,7 +188,6 @@ module.exports.searchSuggestions = async (req, res) => {
 
     const hits = result.hits.hits.map((hit) => {
       const highlights = hit.highlight || {};
-      console.log("highlights:", highlights);
       return {
         teamName: highlights.teamDescription
           ? hit._source.teamName

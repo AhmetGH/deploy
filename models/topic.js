@@ -45,13 +45,20 @@ const topicSchema = new Schema({
       required: false,
     },
   ],
-  edit: {
-    //3 rol
-    type: String,
-    required: true,
-    unique: false,
-    default: false,
-  },
+  editTeam: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      required: false,
+    },
+  ],
+  editUser: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+  ],
   post: [{ type: Schema.Types.ObjectId, ref: "Note", required: false }],
   members: [{ type: Schema.Types.ObjectId, ref: "User", required: false }],
 });

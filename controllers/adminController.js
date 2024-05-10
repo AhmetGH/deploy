@@ -175,8 +175,8 @@ module.exports.updateUser = async function (req, res) {
     const role = await Rolemodel.findOne({ name: req.body.role });
     if (!role) {
       return res.status(404).json({
-        message: "Kullanıcı güncellenemedi",
-        description: "Rol bulunamadı",
+        message: "User could not be updated !",
+        description: "Role not found .",
       });
     }
     const { email, name, title, age, state, key } = req.body;
@@ -196,8 +196,8 @@ module.exports.updateUser = async function (req, res) {
 
     if (!updatedStudent) {
       return res.status(404).json({
-        message: "Kullanıcı güncellenemedi",
-        description: "user not found",
+        message: "User could not be updated !",
+        description: "User not found .",
       });
     }
 

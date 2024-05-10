@@ -1,6 +1,9 @@
 const Usermodel = require("../models/user");
 const Rolemodel = require("../models/role");
 const Teammodel = require("../models/team");
+const notificationModel = require("../models/notification.js");
+
+const io = require("socket.io")();
 
 module.exports.getTeamMembers = async function (req, res) {
   try {
@@ -8,17 +11,15 @@ module.exports.getTeamMembers = async function (req, res) {
 
     const teamName = req.params.teamName;
 
-    const team = await Teammodel.findOne({ teamName, members: userId });
+    // const team = await Teammodel.findOne({ teamName, members: userId });
 
-    const isAdmin = await Usermodel.findById({ _id: userId }).populate("role");
+    // const isAdmin = await Usermodel.findById({ _id: userId }).populate("role");
 
-    if (isAdmin !== "admin") {
-      console.log("admin değil");
-      if (!team) {
-        console.log("takımda değil");
-        return res.redirect("/forbidden");
-      }
-    }
+    // if (isAdmin !== "admin") {
+    //   if (!team) {
+    //     return res.redirect("/forbidden");
+    //   }
+    // }
 
     const pageSize = parseInt(req.query.pageSize);
 
@@ -341,7 +342,7 @@ module.exports.setTeamOnlyMembers = async (req, res) => {
   }
 };
 
-module.exports.createTeam = async (req, res) => {
+module.exports.createTeam = async (req, res, io) => {
   const { teamName, teamDescription } = req.body;
 
   try {
@@ -349,8 +350,8 @@ module.exports.createTeam = async (req, res) => {
 
     if (hasTeam) {
       return res.status(400).json({
-        message: "Takım zaten var",
-        description: "",
+        message: "Team addition unsuccessful.",
+        description: "The team already exists.",
       });
     }
 
@@ -361,24 +362,29 @@ module.exports.createTeam = async (req, res) => {
 
     await yeniTakim.save();
 
+    io.emit("teamCreated", teamName); // Emit the event
+
     return res.status(200).json({
-      message: "Takım ekleme başarılı!",
-      description: " ",
+      message: "Team addition Successful.",
+      description: "The team addition process was completed successfully.",
     });
   } catch (error) {}
 };
 
-module.exports.createTeamMember = async (req, res) => {
+module.exports.createTeamMember = async (req, res, io) => {
   try {
+    const myUserId = req.user.id;
     const teamName = req.params.teamName;
     const userIds = req.body;
+
+    const userName = await Usermodel.findById(myUserId).populate("fullname");
 
     const team = await Teammodel.findOne({ teamName });
 
     if (!team) {
       return res.status(400).json({
-        message: "Takım bulunamadı",
-        description: "",
+        message: "Member addition unsuccessful.",
+        description: "Team not found .",
       });
     }
 
@@ -389,10 +395,35 @@ module.exports.createTeamMember = async (req, res) => {
 
     team.members.push(...userIds);
 
+    // team.members.forEach(async (member) => {
+    //   let notification;
+    //   if (member._id.toString() !== myUserId) {
+    //     notification = new notificationModel({
+    //       userId: member._id,
+    //       message: `${userName.fullname} , sizi ${team.teamName} adlı takıma ekledi.`,
+    //       url: `/teamMates/${team.teamName}`,
+    //     });
+
+    //     await notification.save();
+    //     io.emit("notification", notification);
+    //   }
+    // });
+
+    userIds.forEach(async (userId) => {
+      const notification = new notificationModel({
+        userId: userId,
+        message: `${userName.fullname} , sizi ${team.teamName} adlı takıma ekledi.`,
+        url: `/teamMates/${team.teamName}`,
+      });
+      await notification.save();
+      io.emit("notification", notification);
+    });
+
     await team.save();
+    io.emit("teamMemberCreated");
 
     return res.status(200).json({
-      message: `Kullanıcı ${teamName} takımına eklendi`,
+      teamName: ` ${teamName}`,
       description: "",
     });
   } catch (error) {
@@ -403,14 +434,14 @@ module.exports.createTeamMember = async (req, res) => {
   }
 };
 
-module.exports.updateTeamMember = async function (req, res) {
+module.exports.updateTeamMember = async function (req, res, io) {
   try {
     const role = await Rolemodel.findOne({ name: req.body.role });
     if (!role) {
       return res.status(404).json({
-        message: "Kullanıcı güncellenemedi",
-        teamDescription: "Rol bulunamadı",
-      });
+        message: "The user could not be updated.",
+        description: "Role not found .", // bu açıklamayı değiştirirsen front-end deki çeviri bozulacaktır.
+      }); //değiştirmeden önce kontrol et
     }
     const { email, fullname, title, age, state, key } = req.body;
 
@@ -429,10 +460,12 @@ module.exports.updateTeamMember = async function (req, res) {
 
     if (!updatedStudent) {
       return res.status(404).json({
-        message: "Kullanıcı güncellenemedi",
-        description: "kullanıcı bulunamadı",
+        message: "The user could not be updated.",
+        description: "User not found .",
       });
     }
+
+    io.emit("teamMemberUpdated");
 
     res.status(200).json({
       message: "Kullanıcı güncellendi",
@@ -443,7 +476,7 @@ module.exports.updateTeamMember = async function (req, res) {
   }
 };
 
-module.exports.updateTeam = async function (req, res) {
+module.exports.updateTeam = async function (req, res, io) {
   try {
     const { teamName, teamDescription, key } = req.body;
 
@@ -457,18 +490,25 @@ module.exports.updateTeam = async function (req, res) {
     );
 
     if (!team) {
-      return res.status(404).json({ message: "Takım güncellenmedi" });
+      return res.status(404).json({
+        message: "Team not updated",
+        description: "Team not Found",
+      });
     }
+
+    io.emit("teamUpdated");
 
     return res.status(200).json({
       message: "Takım güncelleme başarılı!",
+      description: "",
     });
   } catch (error) {
     res.status(500).json(error);
   }
 };
 
-module.exports.deleteTeams = async function (req, res) {
+module.exports.deleteTeams = async function (req, res, io) {
+  // Accept io instance as parameter
   try {
     const teamIds = req.body.teamIds;
 
@@ -482,6 +522,7 @@ module.exports.deleteTeams = async function (req, res) {
     );
 
     const result = await Teammodel.deleteMany({ _id: { $in: teamIds } });
+    io.emit("teamDeleted", teamIds); // Emit the event
 
     res.status(200).json({
       message: "Takım silme başarılı",
@@ -510,7 +551,7 @@ module.exports.allMembers = async function (req, res) {
   }
 };
 
-module.exports.removeTeamMember = async (req, res) => {
+module.exports.removeTeamMember = async (req, res, io) => {
   try {
     const teamName = req.params.teamName;
     const { userIds } = req.body;
@@ -533,6 +574,7 @@ module.exports.removeTeamMember = async (req, res) => {
       { _id: { $in: userIds } },
       { $pull: { team: team._id } }
     );
+    io.emit("teamMemberRemoved");
 
     return res.status(200).json({
       message: "Kullanıcılar takımdan başarıyla çıkarıldı",

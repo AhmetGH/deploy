@@ -1,9 +1,14 @@
 const express = require("express");
-var jwt = require("jsonwebtoken");
 const app = express();
+const httpServer = require("http").createServer(app); // Create HTTP server
+const io = require("socket.io")(httpServer, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  },
+});
 const cors = require("cors");
 const path = require("path");
-const bcrypt = require("bcrypt");
 const authMiddleware = require("./middlewares.js");
 const swaggerRoute = require("./routers/swaggerRoute.js");
 
@@ -13,12 +18,12 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = 3000;
 
+httpServer.listen(PORT, () =>
+  console.log(`Server running on http://localhost:${PORT}`)
+);
+
 require("dotenv").config();
-
-app.listen(PORT, () => console.log(`http://localhost:${PORT}`));
-app.use("/api-docs", swaggerRoute);
-
-require("./routers/rooterManager.js")(app);
+require("./routers/rooterManager.js")(app, io); // Pass io instance to your routers
 
 const userModel = require("./models/user");
 
@@ -35,10 +40,59 @@ app.get("/users", authMiddleware, async (req, res) => {
       role: user.role ? user.role.name : null,
     }));
 
-    res
-      .status(200)
-      .json({ usersWithRoleNames: usersWithRoleNames, allUsers: allUsers });
+    res.status(200).json({
+      usersWithRoleNames: usersWithRoleNames,
+      allUsers: allUsers,
+      user: userId,
+    });
   } catch (error) {
     res.status(500).json({ error: "Kullanıcılar getirilemedi" });
+  }
+});
+
+const notificationModel = require("./models/notification.js");
+
+app.get("/notifications", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const notifications = await notificationModel.find({ userId });
+    const unReadNotificationCount = await notificationModel.countDocuments({
+      userId,
+      read: false,
+    });
+
+    console.log("nto", notifications);
+    return res.status(200).json({ notifications, unReadNotificationCount });
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+app.delete("/notifications", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const notifications = await notificationModel.deleteMany({ userId });
+
+    return res.status(200).json({ notifications });
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+app.put("/notifications", async (req, res) => {
+  try {
+    const { notificationId } = req.body;
+    console.log("anot", notificationId);
+
+    const notifications = await notificationModel.updateOne(
+      { _id: notificationId },
+      { $set: { read: true } }
+    );
+
+    return res.status(200).json({ notifications });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 });

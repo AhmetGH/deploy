@@ -4,59 +4,41 @@ var router = express.Router();
 const authMiddleware = require("../middlewares");
 const noteController = require("../controllers/noteController");
 
-router.get("/", authMiddleware, noteController.getNotesToHome);
+module.exports = function (io) {
+  router.get("/", authMiddleware, noteController.getNotesToHome);
 
-router.put("/publish/:noteId", authMiddleware, noteController.publishNote);
+  router.put("/publish/:noteId", authMiddleware, (req, res) => {
+    noteController.publishNote(req, res, io);
+  });
 
-router.get("/my", authMiddleware, noteController.getNotesByUserId);
+  router.get("/my", authMiddleware, noteController.getNotesByUserId);
 
 router.post("/favorite", authMiddleware, noteController.addFavorite);
 router.get("/favorite", authMiddleware, noteController.getByIdFavorites);
+router.get("/read/:noteId", authMiddleware, noteController.getSingleNoteById);
 
-router.delete(
-  "/favorite/:noteId",
-  authMiddleware,
-  noteController.deleteFavorite
-);
+  router.delete(
+    "/favorite/:noteId",
+    authMiddleware,
+    noteController.deleteFavorite
+  );
+router.get("/edit/postEdit/:noteId",noteController.getAccessOfNote);
+  router.put("/update", (req, res) => {
+    noteController.updateNote(req, res, io);
+  });
 
-router.put("/update", noteController.updateNote);
+  router.post("/create", authMiddleware, (req, res) => {
+    noteController.createNote(req, res, io);
+  });
 
-router.post("/create", authMiddleware, noteController.createNote);
+  router.delete("/:noteId", authMiddleware, (req, res) => {
+    noteController.deleteNote(req, res, io);
+  });
 
-router.delete("/:noteId", authMiddleware, noteController.deleteNote);
+  router.get("/quill", authMiddleware, noteController.editor);
 
-router.get("/quill", authMiddleware, noteController.editor);
+  router.get("/quill/:id", authMiddleware, noteController.getEditorById);
 
-router.get("/quill/:id", authMiddleware, noteController.getEditorById);
-
-// router.get("/main", async (req, res) => {
-//   try {
-//     const publicnotes = await Notemodel.find({ isPublic: true }).sort({
-//       _id: -1,
-//     });
-//     res.json({ publicnotes });
-//   } catch (error) {
-//     return res.status(400).json(error);
-//   }
-// });
-
-// router.get("/:noteName", async (req, res) => {
-//   const noteName = req.params.noteName;
-
-//   try {
-//     const note = await Notemodel.findOne({ noteName: noteName });
-
-//     if (!note) {
-//       return res.status(404).json({ message: "noteyok bulunamadı" });
-//     }
-//     res.status(200).json(note);
-//   } catch (error) {
-//     res.status(500).json({
-//       message: " Takım bilgileri getirilirken hata oluştu !",
-//       error: error.message,
-//     });
-//   }
-// });
-
-router.post("/", authMiddleware, noteController.createNoteByPublic);
-module.exports = router;
+  router.post("/", authMiddleware, noteController.createNoteByPublic);
+  return router;
+};

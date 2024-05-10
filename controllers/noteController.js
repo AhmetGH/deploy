@@ -2,28 +2,70 @@ const Notemodel = require("../models/note");
 const Usermodel = require("../models/user");
 const TeamModel = require("../models/team.js");
 const idDecoder = require("../iddecoder.js");
+const TopicModel = require("../models/topic.js");
+const notificationModel = require("../models/notification.js");
+const path = require("path");
+const io = require("socket.io")();
+
+module.exports.getSingleNoteById = async (req, res) => {
+  const noteId = idDecoder(req.params.noteId);
+  try {
+    const theNote = await Notemodel.findById(noteId).populate({
+      path: "owner",
+      model: "User",
+      select: "fullname",
+    });
+
+    const jsonString = JSON.stringify(theNote._id);
+    const encodedid = btoa(jsonString).toString("base64");
+    const [operationTime, operationDate] = calculateTimeAgo(
+      theNote.operationDate
+    );
+    return res.status(200).json({
+      note: {
+        noteName: theNote.noteName,
+        noteId: encodedid,
+        noteDetails: theNote.description,
+        // accessTeam: note.accessTeam,
+        // accessUser: note.accessUser,
+        fullName: theNote.owner.fullname,
+        owner: theNote.owner._id,
+        operationTime: operationTime,
+        operationDate: operationDate,
+      },
+    });
+  } catch (err) {
+    return res.status(400).json(error);
+  }
+};
 
 module.exports.getNotesToHome = async (req, res) => {
   userId = req.user.id;
   try {
     const allnotes = await Notemodel.find({ isPublic: true })
-      .populate("noteName")
+      .populate({
+        path: "owner",
+        model: "User",
+        select: "fullname",
+      })
       .sort({ _id: -1 });
-
-    const user = await Usermodel.findById({ _id: userId }).select("fullname");
 
     const allNotesData = allnotes.map((note) => {
       const jsonString = JSON.stringify(note._id);
       const encodedid = btoa(jsonString).toString("base64");
+      const [operationTime, operationDate] = calculateTimeAgo(
+        note.operationDate
+      );
       return {
         noteName: note.noteName,
         noteId: encodedid,
         noteDetails: note.description,
         accessTeam: note.accessTeam,
         accessUser: note.accessUser,
-        fullName: user.fullname,
-        owner: note.owner,
-        operationDate: calculateTimeAgo(note.operationDate),
+        fullName: note.owner.fullname,
+        owner: note.owner._id,
+        operationTime: operationTime,
+        operationDate: operationDate,
       };
     });
     const myTeam = await TeamModel.find({ members: userId }).populate(
@@ -89,17 +131,17 @@ const calculateTimeAgo = (date) => {
   const years = Math.floor(months / 12);
 
   if (years > 0) {
-    return `${years} year${years !== 1 ? "s" : ""} ago`;
+    return [years, years !== 1 ? "YearsAgo" : "YearAgo"];
   } else if (months > 0) {
-    return `${months} month${months !== 1 ? "s" : ""} ago`;
+    return [months, months !== 1 ? "MonthsAgo" : "MonthAgo"];
   } else if (days > 0) {
-    return `${days} day${days !== 1 ? "s" : ""} ago`;
+    return [days, days !== 1 ? "DaysAgo" : "DayAgo"];
   } else if (hours > 0) {
-    return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+    return [hours, hours !== 1 ? "HoursAgo" : "HourAgo"];
   } else if (minutes > 0) {
-    return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
+    return [minutes, minutes !== 1 ? "MinutesAgo" : "MinuteAgo"];
   } else {
-    return `${seconds} second${seconds !== 1 ? "s" : ""} ago`;
+    return [seconds, seconds !== 1 ? "SecondsAgo" : "SecondAgo"];
   }
 };
 module.exports.getByIdFavorites = async (req, res) => {
@@ -117,12 +159,17 @@ module.exports.getByIdFavorites = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    const favoriteNotes = user.favoritePosts.map((note) => ({
-      id: btoa(JSON.stringify(note._id)).toString("base64"),
-      noteName: note.noteName,
-      operationDate: calculateTimeAgo(note.operationDate),
-    }));
+    const favoriteNotes = user.favoritePosts.map((note) => {
+      const [operationTime, operationDate] = calculateTimeAgo(
+        note.operationDate
+      );
+      return {
+        id: btoa(JSON.stringify(note._id)).toString("base64"),
+        noteName: note.noteName,
+        operationTime: operationTime,
+        operationDate: operationDate,
+      };
+    });
 
     return res.status(200).json({ fullname: user.fullname, favoriteNotes });
   } catch (error) {
@@ -158,16 +205,64 @@ module.exports.deleteFavorite = async (req, res) => {
   }
 };
 
-module.exports.publishNote = async (req, res) => {
+module.exports.publishNote = async (req, res, io) => {
   const isPublished = req.body.isPublished;
   const noteId = idDecoder(req.params.noteId);
-
+  const myUserId = req.user.id;
   try {
     const note = await Notemodel.findById(noteId);
     if (!note) {
       return res.status(404).json({ error: "cannot find note" });
     }
     note.isPublic = isPublished;
+
+    const publisherName = await Usermodel.findById(myUserId).populate(
+      "fullname"
+    );
+
+    if (isPublished === true) {
+      if (note.accessTeam.length > 0) {
+        note.accessTeam.forEach(async (teamId) => {
+          const teamWithMembers = await TeamModel.findById(teamId).populate({
+            path: "members",
+            select: "fullname _id",
+          });
+
+          if (
+            teamWithMembers.members !== null &&
+            teamWithMembers.members.length > 0
+          ) {
+            teamWithMembers.members.forEach(async (member) => {
+              let notification;
+              if (member._id.toString() !== myUserId) {
+                notification = new notificationModel({
+                  userId: member._id,
+                  message: `${publisherName.fullname} , ${teamWithMembers.teamName} ile bir not paylaştı.`,
+                  url: "/home",
+                });
+
+                await notification.save();
+                io.emit("notification", notification);
+              }
+            });
+          }
+        });
+      }
+
+      if (note.accessUser.length > 0) {
+        note.accessUser.forEach(async (userId) => {
+          const user = await Usermodel.findById(userId).populate("fullname");
+          const notification = new notificationModel({
+            userId: user._id,
+            message: `${publisherName.fullname} , sizinle bir not paylaştı.`,
+            url: "/home",
+          });
+          await notification.save();
+          io.emit("notification", notification);
+        });
+      }
+    }
+    io.emit("publisNote");
     await note.save();
 
     res.status(200).json({ message: "Publish success" });
@@ -186,11 +281,15 @@ module.exports.getNotesByUserId = async (req, res) => {
     const notesData = myNotes.map((note) => {
       const jsonString = JSON.stringify(note._id);
       const encodedid = btoa(jsonString).toString("base64");
+      const [operationTime, operationDate] = calculateTimeAgo(
+        note.operationDate
+      );
 
       return {
         noteName: note.noteName,
         noteId: encodedid,
-        operationDate: calculateTimeAgo(note.operationDate),
+        operationTime: operationTime,
+        operationDate: operationDate,
       };
     });
     res.json({ notesData });
@@ -199,7 +298,7 @@ module.exports.getNotesByUserId = async (req, res) => {
   }
 };
 
-module.exports.updateNote = async (req, res) => {
+module.exports.updateNote = async (req, res, io) => {
   const { id, description, noteName } = req.body;
 
   try {
@@ -214,6 +313,7 @@ module.exports.updateNote = async (req, res) => {
       return res.status(404).json({ message: "Not bulunamadı" });
     }
 
+    io.emit("updateNote");
     return res.status(200).json({ message: "Not başarıyla güncellendi", note });
   } catch (error) {
     return res
@@ -222,7 +322,7 @@ module.exports.updateNote = async (req, res) => {
   }
 };
 
-module.exports.createNote = async (req, res) => {
+module.exports.createNote = async (req, res, io) => {
   const userId = req.user.id;
   const { accessTeam, accessUser } = req.body;
   try {
@@ -244,6 +344,7 @@ module.exports.createNote = async (req, res) => {
       noteName: savedNote.noteName,
       noteId: encodedid,
     };
+    io.emit("createMyNote");
 
     return res.status(200).json({ notesData });
   } catch (error) {
@@ -251,7 +352,7 @@ module.exports.createNote = async (req, res) => {
   }
 };
 
-module.exports.deleteNote = async (req, res) => {
+module.exports.deleteNote = async (req, res, io) => {
   const noteId = idDecoder(req.params.noteId);
 
   try {
@@ -261,11 +362,8 @@ module.exports.deleteNote = async (req, res) => {
       return res.status(404).json({ message: "Not bulunamadı" });
     }
 
-    // if (note.noteName !== noteName) {
-    //   return res.status(400).json({ message: "Note ID ve isim eşleşmiyor" });
-    // }
-
     await note.deleteOne();
+    io.emit("deleteNote");
 
     res.status(200).json({ message: "Not başarıyla silindi" });
   } catch (error) {
@@ -323,4 +421,76 @@ module.exports.createNoteByPublic = async (req, res) => {
   } catch (error) {
     res.status(500).json(error);
   }
+};
+
+module.exports.getAccessOfNote = async (req, res) => {
+  const id1 = req.params.noteId;
+  const id = idDecoder(id1);
+  try {
+    const topic = await TopicModel.findOne({ post: { $in: [id] } });
+    console.log(topic);
+    const accessTeam = topic.accessTeam.map((member) => member._id.toString());
+    const accessUser = topic.accessUser.map((member) => member._id.toString());
+    const promises = accessUser.map(async (item) => {
+      const members = await Usermodel.find({ _id: item }).select(
+        "_id fullname"
+      );
+      return members.map((member) => ({
+        _id: member._id.toString(),
+        fullname: member.fullname,
+      }));
+    });
+
+    const members = await Promise.all(promises);
+
+    const member = members.flat();
+
+    const promises2 = accessTeam.map(async (item) => {
+      const members1 = await Usermodel.find({ team: item.toString() }).select(
+        "_id fullname"
+      );
+      return members1.map((member) => ({
+        _id: member._id.toString(),
+        fullname: member.fullname,
+      }));
+    });
+
+    const teamMembers = await Promise.all(promises2);
+
+    const allMembers = teamMembers.flat();
+
+    const promises3 = accessTeam.map(async (item) => {
+      const teams = await TeamModel.find({ _id: item.toString() }).select(
+        "_id teamName"
+      );
+      return teams.map((member) => ({
+        _id: member._id.toString(),
+        teamName: member.teamName,
+      }));
+    });
+
+    const team = await Promise.all(promises3);
+
+    const allteams = team.flat();
+    console.log("accessTeam:", allteams);
+    const allusers = [...allMembers, ...member];
+    const uniqueValues = {};
+ 
+   
+    allusers.forEach(item => {
+        // Her değeri nesnede anahtar olarak kullanarak kontrol ediyoruz
+        // Eğer değer nesnede yoksa nesneye ekliyoruz
+        if (!uniqueValues[item._id.toString()]) {
+            uniqueValues[item._id.toString()] = item;
+        }
+    });
+ 
+    
+    const uniqueArray = Object.values(uniqueValues);
+    console.log(uniqueArray)
+    console.log("accessTeam:", allteams);
+    console.log("accessUser:", uniqueArray);
+
+    return res.json({ team:allteams,users:uniqueArray });
+  } catch (error) {}
 };

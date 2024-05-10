@@ -44,16 +44,16 @@ module.exports.userRegister = async (req, res) => {
     const user = await userModel.findOne({ email });
     if (user) {
       return res.status(400).json({
-        message: "Kullanıcı eklenemedi",
-        description: "Kullanıcı zaten var",
+        message: "User could not be added!",
+        description: "User already exists.",
       });
     }
 
     const getRole = await roleModel.findOne({ name: "user" });
     if (!getRole)
       return res.status(400).json({
-        message: "Kullanıcı eklenemedi",
-        description: "Rol bulunamadı",
+        message: "User could not be added!",
+        description: "Role not found.",
       });
 
     let newUser;
