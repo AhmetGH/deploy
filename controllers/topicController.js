@@ -302,7 +302,7 @@ module.exports.createTopic = async (req, res, io) => {
       editUser,
     });
     const savedTopic = await newTopic.save();
-    //io.emit("createTopic");
+    io.emit("createTopic");
 
     res.status(201).json({ id: savedTopic._id });
   } catch (error) {
@@ -625,8 +625,6 @@ module.exports.getTopicTypeAsTreeData = async (req, res) => {
 
       yourOwnTreeData: yourOwnTreeData,
     });
-
-    // const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
   } catch (error) {
     return res.status(400).json(error);
   }
@@ -710,7 +708,7 @@ module.exports.getTopicByIdEdit = async (req, res) => {
     return res.status(400).json(error);
   }
 };
-module.exports.AddFavoriteTopic = async (req, res) => {
+module.exports.AddFavoriteTopic = async (req, res, io) => {
   const userId = req.user.id;
   const topicId = idDecoder(req.body.topicId);
   try {
@@ -722,13 +720,15 @@ module.exports.AddFavoriteTopic = async (req, res) => {
       return res.status(400).json({ error: "Topic already in favorites" });
     }
     user.favoriteTopic.push(topicId);
+
     await user.save();
+    io.emit("addFavoriteTopic");
     return res.status(200).json({ message: "Note added to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
-module.exports.UnFavoriteTopic = async (req, res) => {
+module.exports.UnFavoriteTopic = async (req, res, io) => {
   const userId = req.user.id;
   const topicId = idDecoder(req.params.topicId);
   try {
@@ -740,7 +740,9 @@ module.exports.UnFavoriteTopic = async (req, res) => {
       (topic) => topic.toString() !== topicId.toString()
     );
     user.favoriteTopic = updatedFavoriteTopics;
+
     await user.save();
+    io.emit("unFavoriteTopic");
     return res.status(200).json({ message: "Note removed to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });

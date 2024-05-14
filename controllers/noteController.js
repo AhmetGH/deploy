@@ -51,6 +51,7 @@ module.exports.getNotesToHome = async (req, res) => {
       .sort({ _id: -1 });
 
     const allNotesData = allnotes.map((note) => {
+      var canEdit = false;
       const jsonString = JSON.stringify(note._id);
       const encodedid = btoa(jsonString).toString("base64");
       const [operationTime, operationDate] = calculateTimeAgo(
@@ -62,10 +63,13 @@ module.exports.getNotesToHome = async (req, res) => {
         noteDetails: note.description,
         accessTeam: note.accessTeam,
         accessUser: note.accessUser,
+        editTeam: note.editTeam,
+        editUser: note.editUser,
         fullName: note.owner.fullname,
         owner: note.owner._id,
         operationTime: operationTime,
         operationDate: operationDate,
+        canEdit: canEdit,
       };
     });
     const myTeam = await TeamModel.find({ members: userId }).populate(
@@ -89,6 +93,19 @@ module.exports.getNotesToHome = async (req, res) => {
         mergedIds.includes(post.owner.toString())
       ) {
         matchingPosts.push(post);
+        if (
+          (Array.isArray(post.editTeam) &&
+            post.editTeam.some((team) =>
+              mergedIds.includes(team.toString())
+            )) ||
+          (Array.isArray(post.editUser) &&
+            post.editUser.some((user) =>
+              mergedIds.includes(user.toString())
+            )) ||
+          mergedIds.includes(post.owner.toString())
+        ) {
+          post.canEdit = true;
+        }
       }
     });
 
@@ -98,7 +115,7 @@ module.exports.getNotesToHome = async (req, res) => {
   }
 };
 
-module.exports.addFavorite = async (req, res) => {
+module.exports.addFavorite = async (req, res, io) => {
   const userId = req.user.id;
   const noteId = idDecoder(req.body.noteId);
 
@@ -113,6 +130,7 @@ module.exports.addFavorite = async (req, res) => {
     }
     user.favoritePosts.push(noteId);
     await user.save();
+    io.emit("addFavoriteNote");
     return res.status(200).json({ message: "Note added to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -176,7 +194,7 @@ module.exports.getByIdFavorites = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-module.exports.deleteFavorite = async (req, res) => {
+module.exports.deleteFavorite = async (req, res, io) => {
   const userId = req.user.id;
   const noteId = idDecoder(req.params.noteId);
 
@@ -199,6 +217,7 @@ module.exports.deleteFavorite = async (req, res) => {
       }
     } else {
     }
+    io.emit("deleteFavoriteNote");
     return res.status(200).json({ message: "Note removed from favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -209,6 +228,12 @@ module.exports.publishNote = async (req, res, io) => {
   const isPublished = req.body.isPublished;
   const noteId = idDecoder(req.params.noteId);
   const myUserId = req.user.id;
+
+  const accessTeam = req.body.accessTeam;
+  const accessUser = req.body.accessUser;
+  const editTeam = req.body.editTeam;
+  const editUser = req.body.editUser;
+
   try {
     const note = await Notemodel.findById(noteId);
     if (!note) {
@@ -216,6 +241,12 @@ module.exports.publishNote = async (req, res, io) => {
     }
     note.isPublic = isPublished;
 
+    const updatedNote = await Notemodel.findByIdAndUpdate(
+      noteId,
+      { accessTeam, accessUser, editTeam, editUser },
+      { new: true }
+    );
+    await updatedNote.save();
     const publisherName = await Usermodel.findById(myUserId).populate(
       "fullname"
     );
@@ -324,7 +355,7 @@ module.exports.updateNote = async (req, res, io) => {
 
 module.exports.createNote = async (req, res, io) => {
   const userId = req.user.id;
-  const { accessTeam, accessUser } = req.body;
+  const { accessTeam, accessUser, editTeam, editUser } = req.body;
   try {
     const newNote = new Notemodel({
       owner: userId,
@@ -334,6 +365,8 @@ module.exports.createNote = async (req, res, io) => {
       description: "",
       accessTeam,
       accessUser,
+      editTeam,
+      editUser,
     });
     const savedNote = await newNote.save();
 
@@ -344,7 +377,7 @@ module.exports.createNote = async (req, res, io) => {
       noteName: savedNote.noteName,
       noteId: encodedid,
     };
-    io.emit("createMyNote");
+    io.emit("createNote");
 
     return res.status(200).json({ notesData });
   } catch (error) {
@@ -426,9 +459,10 @@ module.exports.createNoteByPublic = async (req, res) => {
 module.exports.getAccessOfNote = async (req, res) => {
   const id1 = req.params.noteId;
   const id = idDecoder(id1);
+  userId = req.user.id;
   try {
     const topic = await TopicModel.findOne({ post: { $in: [id] } });
-    console.log(topic);
+    const post = await Notemodel.findById(id);
     const accessTeam = topic.accessTeam.map((member) => member._id.toString());
     const accessUser = topic.accessUser.map((member) => member._id.toString());
     const promises = accessUser.map(async (item) => {
@@ -472,25 +506,35 @@ module.exports.getAccessOfNote = async (req, res) => {
     const team = await Promise.all(promises3);
 
     const allteams = team.flat();
-    console.log("accessTeam:", allteams);
     const allusers = [...allMembers, ...member];
     const uniqueValues = {};
- 
-   
-    allusers.forEach(item => {
-        // Her değeri nesnede anahtar olarak kullanarak kontrol ediyoruz
-        // Eğer değer nesnede yoksa nesneye ekliyoruz
-        if (!uniqueValues[item._id.toString()]) {
-            uniqueValues[item._id.toString()] = item;
-        }
-    });
- 
-    
-    const uniqueArray = Object.values(uniqueValues);
-    console.log(uniqueArray)
-    console.log("accessTeam:", allteams);
-    console.log("accessUser:", uniqueArray);
 
-    return res.json({ team:allteams,users:uniqueArray });
+    allusers.forEach((item) => {
+      // Her değeri nesnede anahtar olarak kullanarak kontrol ediyoruz
+      // Eğer değer nesnede yoksa nesneye ekliyoruz
+      if (!uniqueValues[item._id.toString()]) {
+        uniqueValues[item._id.toString()] = item;
+      }
+    });
+
+    const uniqueArray = Object.values(uniqueValues);
+    const myTeam = await TeamModel.find({ members: userId }).populate(
+      "members"
+    );
+
+    const myTeamIds = myTeam.map((item) => item._id.toString());
+    mergedIds = [...myTeamIds, userId];
+    let canEdit = false;
+    if (
+      (Array.isArray(post.editTeam) &&
+        post.editTeam.some((team) => mergedIds.includes(team.toString()))) ||
+      (Array.isArray(post.editUser) &&
+        post.editUser.some((user) => mergedIds.includes(user.toString()))) ||
+      mergedIds.includes(post.owner.toString())
+    ) {
+      canEdit = true;
+    }
+
+    return res.json({ team: allteams, users: uniqueArray, edit: canEdit });
   } catch (error) {}
 };
