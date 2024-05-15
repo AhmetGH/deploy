@@ -8,6 +8,8 @@ const idDecoder = require("../iddecoder.js");
 
 const { merge } = require("../routers/teamRoute.js");
 
+const cache = require("../utils/cache.js");
+
 function convertToTree(data) {
   const tree = [];
 
@@ -71,74 +73,6 @@ module.exports.getTopicByIdWithChildren = async (req, res) => {
     return res.status(400).json(error);
   }
 };
-
-// async function populateChildren(topicId) {
-//   const topicc = await Topicmodel.findById(topicId);
-//   if (!topicc) {
-//     return null;
-//   }
-//   try {
-//     await topicc.populate("children");
-//   } catch (error) {
-//     console.error("Populate Error:", error);
-//   }
-
-//   const populatedTopic = topicc.toJSON();
-//   console.log("populatedTopic:", populatedTopic);
-//   populatedTopic.children = await Promise.all(
-//     populatedTopic.children.map((child) => populateChildren(child._id))
-//   );
-
-//   return populatedTopic;
-// }
-
-async function getFavoritesWithChildren(userId) {
-  const userTopic = await Usermodel.findById(userId).populate({
-    path: "favoriteTopic",
-  });
-
-  let sortedTopics = [];
-
-  // UnderElement true olanları ve child sayısına göre sırala
-  const underElementTrue = userTopic.favoriteTopic.filter(
-    (topic) => topic.underElement
-  );
-  underElementTrue.sort((a, b) => b.children.length - a.children.length);
-  sortedTopics = [...sortedTopics, ...underElementTrue];
-
-  // UnderElement false olanları ve child sayısına göre sırala
-  const underElementFalse = userTopic.favoriteTopic.filter(
-    (topic) => !topic.underElement
-  );
-  underElementFalse.sort((a, b) => b.children.length - a.children.length);
-  sortedTopics = [...sortedTopics, ...underElementFalse];
-
-  // Her bir öğeden sadece bir tane olacak şekilde sıralı listeyi oluştur
-  sortedTopics = sortedTopics.filter(
-    (topic, index, self) => index === self.findIndex((t) => t._id === topic._id)
-  );
-
-  for (const item of sortedTopics) {
-    item.underElement = true;
-  }
-  let result = [];
-
-  async function getChildren(topic) {
-    result.push(topic);
-    for (const childId of topic.children) {
-      const child = await Topicmodel.findById(childId);
-      if (child) {
-        await getChildren(child);
-      }
-    }
-  }
-
-  for (const topic of sortedTopics) {
-    await getChildren(topic);
-  }
-
-  return result;
-}
 
 async function getFavoritesWithChildren(userId) {
   const myTeam = await TeamModel.find({ members: userId }).populate("members");
@@ -244,8 +178,6 @@ module.exports.getFavoritesByUserId = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const favoritesWithChildren = await getFavoritesWithChildren(userId);
-    const tree = convertToTree(favoritesWithChildren);
     const user = await Usermodel.findById(userId)
       .populate({
         path: "favoritePosts",
@@ -258,6 +190,9 @@ module.exports.getFavoritesByUserId = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const favoritesWithChildren = await getFavoritesWithChildren(userId);
+    const tree = convertToTree(favoritesWithChildren);
+
     const favoriteNotes = user.favoritePosts.map((note) => ({
       id: btoa(JSON.stringify(note._id)).toString("base64"),
       title: note.noteName,
@@ -265,14 +200,12 @@ module.exports.getFavoritesByUserId = async (req, res) => {
       key: uuidv4(),
       type: "note",
     }));
+
     const mergedData = [...tree, ...favoriteNotes];
-    //console.log("mergedData:", mergedData);
 
-    const favoriteTreeData = mergedData;
-
-    return res.status(200).json({ favoriteTreeData });
+    return res.status(200).json({ favoriteTreeData: mergedData });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error", error });
   }
 };
 
@@ -302,7 +235,7 @@ module.exports.createTopic = async (req, res, io) => {
       editUser,
     });
     const savedTopic = await newTopic.save();
-    //io.emit("createTopic");
+    io.emit("createTopic");
 
     res.status(201).json({ id: savedTopic._id });
   } catch (error) {
@@ -366,50 +299,6 @@ module.exports.mainTopicCheck = async (req, res) => {
     underId = idDecoder(req.body.topicId);
   }
 
-  // const selectedTeams = req.body.selectedTeams;
-  // const selectedUsers = req.body.selectedUsers;
-  // try {
-  //   const topic = await Topicmodel.findById(underId).populate("accessTeam");
-  //   const owner = topic.owner.toString();
-  //   const teamIds = topic.accessTeam.map((team) => team._id.toString());
-
-  //   const UserIds = topic.accessUser.map((user) => user._id.toString());
-  //   const promises2 = teamIds.map(async (item) => {
-  //     const members = await Usermodel.find({ team: item.toString() }).select(
-  //       "_id"
-  //     );
-  //     return members.map((member) => member._id.toString());
-  //   });
-
-  //   const teamMembers = await Promise.all(promises2);
-  //   //console.log(teamMembers);
-
-  //   const allMembers = teamMembers.flat();
-
-  //   const mergedUsers = [...allMembers, ...UserIds];
-  //   mergedUsers.push(owner);
-  //   console.log(mergedUsers);
-  //   const differentUsers1 = selectedUsers.filter(
-  //     (user) => !mergedUsers.includes(user)
-  //   );
-
-  //   const differentTeams1 = selectedTeams.filter(
-  //     (team) => !teamIds.includes(team)
-  //   );
-
-  //   const promises = differentTeams1.map(async (item) => {
-  //     const differentTeam = await TeamModel.findById(item);
-  //     return differentTeam;
-  //   });
-
-  //   const differentTeams = await Promise.all(promises);
-
-  //   const promises1 = differentUsers1.map(async (item) => {
-  //     const differentUser = await Usermodel.findById(item);
-  //     return differentUser;
-  //   });
-
-  //   const differentUsers = await Promise.all(promises1);
   try {
     const topic = await Topicmodel.findById(underId).populate("accessTeam");
     const owner = topic.owner.toString();
@@ -442,32 +331,32 @@ module.exports.mainTopicCheck = async (req, res) => {
     return res.status(400).json(error);
   }
 };
+
 module.exports.getTopicById = async (req, res) => {
   const topicId = req.params.topicId;
-
-  const id = idDecoder(topicId);
+  const decodedId = idDecoder(topicId);
   const userId = req.user.id;
+
   try {
-    const topicOwner = await Topicmodel.findById(id, "owner");
+    const [topic, user] = await Promise.all([
+      Topicmodel.findById(decodedId).populate({
+        path: "post",
+        select: "id noteName operationDate accessTeam accessUser owner",
+        options: { sort: { operationDate: -1 } },
+      }),
+      Usermodel.findById(userId).select("fullname"),
+    ]);
 
-    const topic = await Topicmodel.findById(id).populate({
-      path: "post",
-      select: "id noteName operationDate accessTeam accessUser owner",
-      options: { sort: { operationDate: -1 } },
-    });
-
-    const user = await Usermodel.findById(req.user.id).select("fullname");
     if (!topic) {
       return res.status(404).json({ message: "Konu bulunamadı" });
     }
 
-    const myTeam = await TeamModel.find({ members: userId }).populate(
-      "members"
-    );
+    const teamIds = topic.accessTeam.map((team) => team.toString());
+    const userTeams = await TeamModel.find({ members: userId });
+    const userTeamIds = userTeams.map((team) => team._id.toString());
 
-    const myTeamIds = myTeam.map((item) => item._id.toString());
+    const accessIds = new Set([...userTeamIds, userId]);
 
-    mergedIds = [...myTeamIds, userId];
     const posts = topic.post.map((post) => {
       const [operationTime, operationDate] = calculateTimeAgo(
         post.operationDate
@@ -476,161 +365,120 @@ module.exports.getTopicById = async (req, res) => {
         id: post._id,
         noteName: post.noteName,
         noteId: btoa(JSON.stringify(post._id)).toString("base64"),
-        operationTime: operationTime,
-        operationDate: operationDate,
+        operationTime,
+        operationDate,
         accessTeam: post.accessTeam,
         accessUser: post.accessUser,
         owner: post.owner,
+        canEdit: this.checkAccess(post, accessIds),
       };
     });
-    const matchingPosts = [];
 
-    if (mergedIds.includes(topicOwner.owner.toString())) {
-      posts.forEach((post) => {
-        matchingPosts.push(post);
-      });
-    } else {
-      posts.forEach((post) => {
-        if (
-          (Array.isArray(post.accessTeam) &&
-            post.accessTeam.some((team) =>
-              mergedIds.includes(team.toString())
-            )) ||
-          (Array.isArray(post.accessUser) &&
-            post.accessUser.some((user) =>
-              mergedIds.includes(user.toString())
-            )) ||
-          (Array.isArray(post.accessTeam) &&
-            post.accessTeam.some((team) =>
-              mergedIds.includes(team.toString())
-            )) ||
-          (Array.isArray(post.accessUser) &&
-            post.accessUser.some((user) =>
-              mergedIds.includes(user.toString())
-            )) ||
-          mergedIds.includes(post.owner.toString())
-        ) {
-          matchingPosts.push(post);
-        }
-      });
-    }
-    const teamIds = topic.accessTeam.map((team) => team._id.toString());
+    const filteredPosts = posts.filter((post) => post.canEdit);
 
-    const UserIds = topic.accessUser.map((user) => user._id.toString());
+    let editPermission =
+      topic.editTeam.includes(userId) ||
+      topic.editUser.includes(userId) ||
+      topic.owner.toString() === userId;
 
-    const topicsWithEditTeam = topic.editTeam.includes(userId);
+    const userData = await this.getUniqueUserData([
+      ...topic.accessUser,
+      topic.owner,
+    ]);
 
-    const topicsWithEditUser = topic.editUser.includes(userId);
-    console.log(topicsWithEditTeam, "", topicsWithEditUser);
-    let edit = false;
-    if (
-      topicsWithEditUser ||
-      topicsWithEditTeam ||
-      userId === topicOwner.owner.toString()
-    ) {
-      edit = true;
-    }
-    const promises2 = teamIds.map(async (item) => {
-      const members = await Usermodel.find({ team: item.toString() }).select(
-        "_id"
-      );
-      return members.map((member) => member._id.toString());
-    });
-
-    const teamMembers = await Promise.all(promises2);
-
-    const allMembers = teamMembers.flat();
-
-    const mergedUsers = [...allMembers, ...UserIds];
-
-    mergedUsers.push(topic.owner.toString());
-
-    let userData = [];
-    const promises5 = mergedUsers.map(async (userId) => {
-      const user = await Usermodel.findById(userId);
-      const fullName = user.fullname;
-      const initials = fullName
-        .split(" ")
-        .map((name) => name.charAt(0).toUpperCase())
-        .join("");
-
-      return { key: user._id, label: fullName, nick: initials };
-    });
-    userData = await Promise.all(promises5);
-    const uniqueValues = {};
-
-    userData.forEach((item) => {
-      if (!uniqueValues[item.key.toString()]) {
-        uniqueValues[item.key.toString()] = item;
-      }
-    });
-
-    const uniqueArray = Object.values(uniqueValues);
-
-    return res.json({
+    res.json({
       fullname: user.fullname,
-      posts: matchingPosts,
-      mergedUsers: uniqueArray,
-      edit: edit,
+      posts: filteredPosts,
+      mergedUsers: userData,
+      edit: editPermission,
     });
   } catch (error) {
-    return res.status(400).json(error);
+    console.error("Error fetching topic details:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
+};
+
+module.exports.checkAccess = (post, accessIds) => {
+  return (
+    post.accessTeam.some((team) => accessIds.has(team.toString())) ||
+    post.accessUser.some((user) => accessIds.has(user.toString())) ||
+    accessIds.has(post.owner.toString())
+  );
+};
+
+module.exports.getUniqueUserData = async (userIds) => {
+  const users = await Usermodel.find({ _id: { $in: userIds } });
+  return users.map((user) => ({
+    key: user._id.toString(),
+    label: user.fullname,
+    nick: user.fullname
+      .split(" ")
+      .map((name) => name.charAt(0).toUpperCase())
+      .join(""),
+  }));
+};
+
+const findTeamTopics = async (teamId) => {
+  return Topicmodel.find({ accessTeam: teamId.toString() }).populate(
+    "accessTeam"
+  );
+};
+
+const getTeamTopics = async (userId) => {
+  const cacheKey = `teamTopics-${userId}`;
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
+  const myTeam = await TeamModel.find({ members: userId }).populate("members");
+  const topics = await Promise.all(
+    myTeam.map(async (team) => findTeamTopics(team._id))
+  );
+
+  cache.set(cacheKey, topics);
+  return topics;
+};
+
+const getUniqueTopics = (topics) => {
+  const uniqueTopics = [];
+  const existingIds = new Set();
+
+  topics.flat().forEach((topic) => {
+    if (!existingIds.has(topic._id.toString())) {
+      existingIds.add(topic._id.toString());
+      uniqueTopics.push(topic);
+    }
+  });
+
+  return uniqueTopics;
 };
 
 module.exports.getTopicTypeAsTreeData = async (req, res) => {
   const userId = req.user.id;
   try {
-    const myTeam = await TeamModel.find({ members: userId }).populate(
-      "members"
-    );
-    myTopics = await Topicmodel.find({
+    const myTopics = await Topicmodel.find({
       accessUser: userId.toString(),
     }).populate("accessUser");
-
-    const promises = myTeam.map(async (item) => {
-      teamId = item._id;
-      const myTeamsTopic = await Topicmodel.find({
-        accessTeam: teamId.toString(),
-      }).populate("accessTeam");
-      return myTeamsTopic;
-    });
-    const myTeamsTopic1 = await Promise.all(promises);
-
-    const myTeamsTopics = [];
-    const existingIds = [];
-
-    myTeamsTopic1.forEach((topics) => {
-      topics.forEach((topic) => {
-        if (!existingIds.includes(topic._id.toString())) {
-          existingIds.push(topic._id.toString());
-          myTeamsTopics.push(topic);
-        }
-      });
-    });
+    const teamTopics = await getTeamTopics(userId);
+    const uniqueTopics = getUniqueTopics(teamTopics);
 
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
-    //console.log("yourOwnTopics:", yourOwnTopics);
-    const mergedTopics = [...myTopics, ...myTeamsTopics];
-    //console.log("mergedTopics:", mergedTopics);
+    const mergedTopics = [...myTopics, ...uniqueTopics];
 
-    const tree = convertToTree(mergedTopics);
-    const treeData = JSON.stringify(tree, null, 2);
+    const treeData = JSON.stringify(convertToTree(mergedTopics), null, 2);
+    const yourOwnTreeData = JSON.stringify(
+      convertToTree(yourOwnTopics),
+      null,
+      2
+    );
 
-    const yourOwnTree = convertToTree(yourOwnTopics);
-    const yourOwnTreeData = JSON.stringify(yourOwnTree, null, 2);
-
-    res.json({
-      treeData: treeData,
-
-      yourOwnTreeData: yourOwnTreeData,
-    });
-
-    // const allTopic = await Topicmodel.find({}).sort({ _id: -1 });
+    res.json({ treeData, yourOwnTreeData });
   } catch (error) {
-    return res.status(400).json(error);
+    console.error("Failed to fetch topics:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
+
 module.exports.getTopic = async (req, res) => {
   const userId = req.user.id;
   try {
@@ -695,7 +543,7 @@ module.exports.getTopicByIdEdit = async (req, res) => {
     const topicsWithEditTeam = topic.editTeam.includes(userId);
 
     const topicsWithEditUser = topic.editUser.includes(userId);
-    console.log(topicsWithEditTeam, "", topicsWithEditUser);
+
     let edit = false;
     if (
       topicsWithEditUser ||
@@ -710,7 +558,7 @@ module.exports.getTopicByIdEdit = async (req, res) => {
     return res.status(400).json(error);
   }
 };
-module.exports.AddFavoriteTopic = async (req, res) => {
+module.exports.AddFavoriteTopic = async (req, res, io) => {
   const userId = req.user.id;
   const topicId = idDecoder(req.body.topicId);
   try {
@@ -722,13 +570,15 @@ module.exports.AddFavoriteTopic = async (req, res) => {
       return res.status(400).json({ error: "Topic already in favorites" });
     }
     user.favoriteTopic.push(topicId);
+
     await user.save();
+    io.emit("addFavoriteTopic");
     return res.status(200).json({ message: "Note added to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
   }
 };
-module.exports.UnFavoriteTopic = async (req, res) => {
+module.exports.UnFavoriteTopic = async (req, res, io) => {
   const userId = req.user.id;
   const topicId = idDecoder(req.params.topicId);
   try {
@@ -740,7 +590,9 @@ module.exports.UnFavoriteTopic = async (req, res) => {
       (topic) => topic.toString() !== topicId.toString()
     );
     user.favoriteTopic = updatedFavoriteTopics;
+
     await user.save();
+    io.emit("unFavoriteTopic");
     return res.status(200).json({ message: "Note removed to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });

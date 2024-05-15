@@ -130,7 +130,7 @@ module.exports.searchSuggestions = async (req, res) => {
   try {
     const userId = req.user.id;
     const { query } = req.query;
-    console.log("userId:", userId);
+
 
     const user = await userModel.findById(userId).populate("team");
 

@@ -22,6 +22,11 @@ const noteSchema = new Schema({
     default: Date.now,
     required: true,
   },
+  readingTime: {
+    type: Number,
+    required: false,
+    unique: false,
+  },
   accessTeam: [
     {
       type: Schema.Types.ObjectId,
@@ -30,6 +35,20 @@ const noteSchema = new Schema({
     },
   ],
   accessUser: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+    },
+  ],
+  editTeam: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      required: false,
+    },
+  ],
+  editUser: [
     {
       type: Schema.Types.ObjectId,
       ref: "User",

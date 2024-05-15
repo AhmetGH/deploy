@@ -5,6 +5,7 @@ const idDecoder = require("../iddecoder.js");
 const TopicModel = require("../models/topic.js");
 const notificationModel = require("../models/notification.js");
 const path = require("path");
+const { isUtf8 } = require("buffer");
 const io = require("socket.io")();
 
 module.exports.getSingleNoteById = async (req, res) => {
@@ -39,66 +40,76 @@ module.exports.getSingleNoteById = async (req, res) => {
   }
 };
 
+const calculateReadingTime = (seconds) => {
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const months = Math.floor(days / 30);
+  const years = Math.floor(months / 12);
+
+  if (years > 0) {
+    return [years, years !== 1 ? "Years" : "Year"];
+  } else if (months > 0) {
+    return [months, months !== 1 ? "Months" : "Month"];
+  } else if (days > 0) {
+    return [days, days !== 1 ? "Days" : "Day"];
+  } else if (hours > 0) {
+    return [hours, hours !== 1 ? "Hours" : "Hour"];
+  } else if (minutes > 0) {
+    return [minutes, minutes !== 1 ? "Minutes" : "Minute"];
+  } else {
+    return [seconds, seconds !== 1 ? "Seconds" : "Second"];
+  }
+};
 module.exports.getNotesToHome = async (req, res) => {
-  userId = req.user.id;
+  const userId = req.user.id;
   try {
-    const allnotes = await Notemodel.find({ isPublic: true })
-      .populate({
-        path: "owner",
-        model: "User",
-        select: "fullname",
-      })
+    const myTeam = await TeamModel.find({ members: userId });
+    const myTeamIds = myTeam.map((team) => team._id.toString());
+    const accessibleIds = [userId, ...myTeamIds];
+
+    const allnotes = await Notemodel.find({
+      $or: [
+        { accessUser: { $in: accessibleIds } },
+        { accessTeam: { $in: accessibleIds } },
+        { owner: userId },
+      ],
+      isPublic: true,
+    })
+      .populate("owner", "fullname")
       .sort({ _id: -1 });
 
     const allNotesData = allnotes.map((note) => {
-      const jsonString = JSON.stringify(note._id);
-      const encodedid = btoa(jsonString).toString("base64");
       const [operationTime, operationDate] = calculateTimeAgo(
         note.operationDate
       );
+      const [readingTime, readingDate] = calculateReadingTime(note.readingTime);
+      const canEdit =
+        note.editUser.includes(userId) ||
+        note.editTeam.some((team) => accessibleIds.includes(team.toString())) ||
+        note.owner._id.toString() === userId;
+
       return {
         noteName: note.noteName,
-        noteId: encodedid,
+        noteId: btoa(JSON.stringify(note._id)).toString("base64"),
         noteDetails: note.description,
-        accessTeam: note.accessTeam,
-        accessUser: note.accessUser,
         fullName: note.owner.fullname,
         owner: note.owner._id,
-        operationTime: operationTime,
-        operationDate: operationDate,
+        readingTime: readingTime,
+        readingDate: readingDate,
+        operationTime,
+        operationDate,
+        canEdit,
       };
     });
-    const myTeam = await TeamModel.find({ members: userId }).populate(
-      "members"
-    );
 
-    const myTeamIds = myTeam.map((item) => item._id.toString());
-    mergedIds = [...myTeamIds, userId];
-    const matchingPosts = [];
-
-    allNotesData.forEach((post) => {
-      if (
-        (Array.isArray(post.accessTeam) &&
-          post.accessTeam.some((team) =>
-            mergedIds.includes(team.toString())
-          )) ||
-        (Array.isArray(post.accessUser) &&
-          post.accessUser.some((user) =>
-            mergedIds.includes(user.toString())
-          )) ||
-        mergedIds.includes(post.owner.toString())
-      ) {
-        matchingPosts.push(post);
-      }
-    });
-
-    res.json({ allNotes: matchingPosts });
+    res.json({ allNotes: allNotesData });
   } catch (error) {
-    return res.status(400).json(error);
+    res.status(400).json({ message: "Failed to retrieve notes", error });
   }
 };
 
-module.exports.addFavorite = async (req, res) => {
+module.exports.addFavorite = async (req, res, io) => {
   const userId = req.user.id;
   const noteId = idDecoder(req.body.noteId);
 
@@ -113,6 +124,7 @@ module.exports.addFavorite = async (req, res) => {
     }
     user.favoritePosts.push(noteId);
     await user.save();
+    io.emit("addFavoriteNote");
     return res.status(200).json({ message: "Note added to favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -176,7 +188,7 @@ module.exports.getByIdFavorites = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-module.exports.deleteFavorite = async (req, res) => {
+module.exports.deleteFavorite = async (req, res, io) => {
   const userId = req.user.id;
   const noteId = idDecoder(req.params.noteId);
 
@@ -199,6 +211,7 @@ module.exports.deleteFavorite = async (req, res) => {
       }
     } else {
     }
+    io.emit("deleteFavoriteNote");
     return res.status(200).json({ message: "Note removed from favorites" });
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -209,65 +222,73 @@ module.exports.publishNote = async (req, res, io) => {
   const isPublished = req.body.isPublished;
   const noteId = idDecoder(req.params.noteId);
   const myUserId = req.user.id;
+
   try {
-    const note = await Notemodel.findById(noteId);
+    let note = await Notemodel.findById(noteId)
+      .populate("accessTeam")
+      .populate("accessUser");
+
     if (!note) {
+      console.log("Note not found:", noteId);
       return res.status(404).json({ error: "cannot find note" });
     }
+
+    console.log("Note found, updating status.");
     note.isPublic = isPublished;
+    note.accessTeam = req.body.accessTeam;
+    note.accessUser = req.body.accessUser;
+    note.editTeam = req.body.editTeam;
+    note.editUser = req.body.editUser;
+
+    await note.save();
 
     const publisherName = await Usermodel.findById(myUserId).populate(
       "fullname"
     );
 
-    if (isPublished === true) {
-      if (note.accessTeam.length > 0) {
-        note.accessTeam.forEach(async (teamId) => {
-          const teamWithMembers = await TeamModel.findById(teamId).populate({
-            path: "members",
-            select: "fullname _id",
-          });
+    if (isPublished) {
+      for (const team of note.accessTeam) {
+        const teamWithMembers = await TeamModel.findById(team).populate(
+          "members",
+          "fullname _id"
+        );
 
-          if (
-            teamWithMembers.members !== null &&
-            teamWithMembers.members.length > 0
-          ) {
-            teamWithMembers.members.forEach(async (member) => {
-              let notification;
-              if (member._id.toString() !== myUserId) {
-                notification = new notificationModel({
-                  userId: member._id,
-                  message: `${publisherName.fullname} , ${teamWithMembers.teamName} ile bir not paylaştı.`,
-                  url: "/home",
-                });
-
-                await notification.save();
-                io.emit("notification", notification);
-              }
+        for (const member of teamWithMembers.members) {
+          if (member._id.toString() !== myUserId) {
+            const notification = new notificationModel({
+              userId: member._id,
+              message: `${publisherName.fullname} has shared a note with ${teamWithMembers.teamName}.`,
+              url: "/home",
             });
+
+            io.emit("notification", notification);
+            await notification.save();
           }
-        });
+        }
       }
 
-      if (note.accessUser.length > 0) {
-        note.accessUser.forEach(async (userId) => {
-          const user = await Usermodel.findById(userId).populate("fullname");
-          const notification = new notificationModel({
-            userId: user._id,
-            message: `${publisherName.fullname} , sizinle bir not paylaştı.`,
-            url: "/home",
-          });
-          await notification.save();
-          io.emit("notification", notification);
+      for (const user of note.accessUser) {
+        const userData = await Usermodel.findById(user).populate("fullname");
+
+        const notification = new notificationModel({
+          userId: userData._id,
+          message: `${publisherName.fullname} has shared a note with you.`,
+          url: "/home",
         });
+
+        io.emit("notification", notification);
+        await notification.save();
       }
     }
-    io.emit("publisNote");
-    await note.save();
+
+    io.emit("publishNote");
 
     res.status(200).json({ message: "Publish success" });
   } catch (error) {
-    return res.status(400).json(error);
+    console.error("Error occurred during note publishing:", error);
+    return res
+      .status(400)
+      .json({ error: "An error occurred while processing your request." });
   }
 };
 
@@ -298,15 +319,27 @@ module.exports.getNotesByUserId = async (req, res) => {
   }
 };
 
+const CalculateReadingTime = (description) => {
+  const cleanedText = description.replace(/<[^>]+>/g, "");
+  const words = cleanedText.split(/\s+/);
+  const wordCount = words.length;
+  return Math.floor(wordCount / 3);
+};
+
 module.exports.updateNote = async (req, res, io) => {
   const { id, description, noteName } = req.body;
 
   try {
     const noteId = idDecoder(id);
-
+    const readingTime = CalculateReadingTime(description);
     const note = await Notemodel.findByIdAndUpdate(
       noteId,
-      { description, noteName, operationDate: new Date() },
+      {
+        description,
+        noteName,
+        readingTime: readingTime,
+        operationDate: new Date(),
+      },
       { new: true }
     );
     if (!note) {
@@ -324,16 +357,19 @@ module.exports.updateNote = async (req, res, io) => {
 
 module.exports.createNote = async (req, res, io) => {
   const userId = req.user.id;
-  const { accessTeam, accessUser } = req.body;
+  const { accessTeam, accessUser, editTeam, editUser } = req.body;
   try {
     const newNote = new Notemodel({
       owner: userId,
       noteName: "Untitled",
       members: userId,
+      readingTime: 0,
       isPublic: false,
       description: "",
       accessTeam,
       accessUser,
+      editTeam,
+      editUser,
     });
     const savedNote = await newNote.save();
 
@@ -344,7 +380,7 @@ module.exports.createNote = async (req, res, io) => {
       noteName: savedNote.noteName,
       noteId: encodedid,
     };
-    io.emit("createMyNote");
+    io.emit("createNote");
 
     return res.status(200).json({ notesData });
   } catch (error) {
@@ -426,71 +462,94 @@ module.exports.createNoteByPublic = async (req, res) => {
 module.exports.getAccessOfNote = async (req, res) => {
   const id1 = req.params.noteId;
   const id = idDecoder(id1);
+  userId = req.user.id;
+  let allteams = "";
+  let uniqueArray = [];
+  let canEdit = false;
   try {
     const topic = await TopicModel.findOne({ post: { $in: [id] } });
-    console.log(topic);
-    const accessTeam = topic.accessTeam.map((member) => member._id.toString());
-    const accessUser = topic.accessUser.map((member) => member._id.toString());
-    const promises = accessUser.map(async (item) => {
-      const members = await Usermodel.find({ _id: item }).select(
-        "_id fullname"
+    if (topic === null) {
+      allteams = await TeamModel.find({});
+      uniqueArray = await Usermodel.find({});
+      canEdit = true;
+    } else {
+      const post = await Notemodel.findById(id);
+      const accessTeam = topic.accessTeam.map((member) =>
+        member._id.toString()
       );
-      return members.map((member) => ({
-        _id: member._id.toString(),
-        fullname: member.fullname,
-      }));
-    });
-
-    const members = await Promise.all(promises);
-
-    const member = members.flat();
-
-    const promises2 = accessTeam.map(async (item) => {
-      const members1 = await Usermodel.find({ team: item.toString() }).select(
-        "_id fullname"
+      const accessUser = topic.accessUser.map((member) =>
+        member._id.toString()
       );
-      return members1.map((member) => ({
-        _id: member._id.toString(),
-        fullname: member.fullname,
-      }));
-    });
+      const promises = accessUser.map(async (item) => {
+        const members = await Usermodel.find({ _id: item }).select(
+          "_id fullname"
+        );
+        return members.map((member) => ({
+          _id: member._id.toString(),
+          fullname: member.fullname,
+        }));
+      });
 
-    const teamMembers = await Promise.all(promises2);
+      const members = await Promise.all(promises);
 
-    const allMembers = teamMembers.flat();
+      const member = members.flat();
 
-    const promises3 = accessTeam.map(async (item) => {
-      const teams = await TeamModel.find({ _id: item.toString() }).select(
-        "_id teamName"
-      );
-      return teams.map((member) => ({
-        _id: member._id.toString(),
-        teamName: member.teamName,
-      }));
-    });
+      const promises2 = accessTeam.map(async (item) => {
+        const members1 = await Usermodel.find({ team: item.toString() }).select(
+          "_id fullname"
+        );
+        return members1.map((member) => ({
+          _id: member._id.toString(),
+          fullname: member.fullname,
+        }));
+      });
 
-    const team = await Promise.all(promises3);
+      const teamMembers = await Promise.all(promises2);
 
-    const allteams = team.flat();
-    console.log("accessTeam:", allteams);
-    const allusers = [...allMembers, ...member];
-    const uniqueValues = {};
- 
-   
-    allusers.forEach(item => {
+      const allMembers = teamMembers.flat();
+
+      const promises3 = accessTeam.map(async (item) => {
+        const teams = await TeamModel.find({ _id: item.toString() }).select(
+          "_id teamName"
+        );
+        return teams.map((member) => ({
+          _id: member._id.toString(),
+          teamName: member.teamName,
+        }));
+      });
+
+      const team = await Promise.all(promises3);
+
+      allteams = team.flat();
+      const allusers = [...allMembers, ...member];
+      const uniqueValues = {};
+
+      allusers.forEach((item) => {
         // Her değeri nesnede anahtar olarak kullanarak kontrol ediyoruz
         // Eğer değer nesnede yoksa nesneye ekliyoruz
         if (!uniqueValues[item._id.toString()]) {
-            uniqueValues[item._id.toString()] = item;
+          uniqueValues[item._id.toString()] = item;
         }
-    });
- 
-    
-    const uniqueArray = Object.values(uniqueValues);
-    console.log(uniqueArray)
-    console.log("accessTeam:", allteams);
-    console.log("accessUser:", uniqueArray);
+      });
 
-    return res.json({ team:allteams,users:uniqueArray });
+      uniqueArray = Object.values(uniqueValues);
+      const myTeam = await TeamModel.find({ members: userId }).populate(
+        "members"
+      );
+
+      const myTeamIds = myTeam.map((item) => item._id.toString());
+      mergedIds = [...myTeamIds, userId];
+
+      if (
+        (Array.isArray(post.editTeam) &&
+          post.editTeam.some((team) => mergedIds.includes(team.toString()))) ||
+        (Array.isArray(post.editUser) &&
+          post.editUser.some((user) => mergedIds.includes(user.toString()))) ||
+        mergedIds.includes(post.owner.toString())
+      ) {
+        canEdit = true;
+      }
+    }
+    return res.json({ team: allteams, users: uniqueArray, edit: canEdit });
   } catch (error) {}
 };
