@@ -8,42 +8,37 @@ module.exports = function (io) {
   router.get("/", authMiddleware, noteController.getNotesToHome);
 
   router.put("/publish/:noteId", authMiddleware, (req, res) => {
-    noteController.publishNote(req, res, io); //pub
+    noteController.publishNote(req, res, io);
   });
 
   router.get("/my", authMiddleware, noteController.getNotesByUserId);
 
-  router.post("/favorite", authMiddleware, (req, res) => {
-    noteController.addFavorite(req, res, io);
-  }); //socket fav
-  router.get("/favorite", authMiddleware, noteController.getByIdFavorites);
-  router.get("/read/:noteId", authMiddleware, noteController.getSingleNoteById);
+router.post("/favorite", authMiddleware, noteController.addFavorite);
+router.get("/favorite", authMiddleware, noteController.getByIdFavorites);
+router.get("/read/:noteId", authMiddleware, noteController.getSingleNoteById);
 
-  router.delete("/favorite/:noteId", authMiddleware, (req, res) => {
-    noteController.deleteFavorite(req, res, io); //socket fav
-  });
-  router.get(
-    "/edit/postEdit/:noteId",
+  router.delete(
+    "/favorite/:noteId",
     authMiddleware,
-    noteController.getAccessOfNote
+    noteController.deleteFavorite
   );
+router.get("/edit/postEdit/:noteId",noteController.getAccessOfNote);
   router.put("/update", (req, res) => {
-    noteController.updateNote(req, res, io); //update
+    noteController.updateNote(req, res, io);
   });
 
   router.post("/create", authMiddleware, (req, res) => {
-    noteController.createNote(req, res, io); //create
+    noteController.createNote(req, res, io);
   });
 
   router.delete("/:noteId", authMiddleware, (req, res) => {
-    noteController.deleteNote(req, res, io); //delete
+    noteController.deleteNote(req, res, io);
   });
 
   router.get("/quill", authMiddleware, noteController.editor);
 
   router.get("/quill/:id", authMiddleware, noteController.getEditorById);
 
-  router.post("/", authMiddleware, noteController.createNoteByPublic); //socket
-
+  router.post("/", authMiddleware, noteController.createNoteByPublic);
   return router;
 };

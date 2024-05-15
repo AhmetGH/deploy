@@ -31,14 +31,20 @@ mongoose
     const topicsChangeStream = topicsCollection.watch();
 
     notesChangeStream.on("change", async (change) => {
+      //console.log("Note change detected:", change);
+      //console.log("Note change detected:", change);
       await syncNoteToElasticsearch(change);
     });
 
     teamsChangeStream.on("change", async (change) => {
+      //console.log("Team change detected:", change);
+      //console.log("Team change detected:", change);
       await syncTeamToElasticsearch(change);
     });
 
     topicsChangeStream.on("change", async (change) => {
+      //console.log("Topic change detected:", change);
+      //console.log("Topic change detected:", change);
       await syncTopicToElasticsearch(change);
     });
   })
@@ -123,7 +129,7 @@ async function syncNoteToElasticsearch(change) {
           noteId: encodedid,
           noteAccessTeam: fullDocument.accessTeam.map((team) =>
             team.toString()
-          ),
+          ), // Assuming accessTeam is an array of ObjectIds
           noteAccessUser: fullDocument.accessUser.map((user) =>
             user.toString()
           ),
@@ -182,6 +188,8 @@ async function syncTopicToElasticsearch(change) {
       const jsonString = JSON.stringify(fullDocument._id);
       const encodedid = Buffer.from(jsonString).toString("base64");
 
+      console.log("insert", fullDocument);
+
       await esClient.index({
         index: "bilgi",
         id: documentKey._id.toHexString(),
@@ -202,6 +210,7 @@ async function syncTopicToElasticsearch(change) {
       const updatedFields = updateDescription.updatedFields;
 
       let { topicName, parent, owner, accessTeam, accessUser } = updatedFields;
+      console.log("updatedFields", updatedFields);
 
       await esClient.update({
         index: "bilgi",

@@ -36,20 +36,6 @@ const noteSchema = new Schema({
       required: false,
     },
   ],
-  editTeam: [
-    {
-      type: Schema.Types.ObjectId,
-      ref: "Team",
-      required: false,
-    },
-  ],
-  editUser: [
-    {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: false,
-    },
-  ],
   owner: {
     type: Schema.Types.ObjectId,
     ref: "User",

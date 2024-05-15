@@ -10,12 +10,12 @@ module.exports = function (io) {
     authMiddleware,
     topicController.getTopicById
   );
-
-  router.get(
-    "/edit/topicEdit/:topicId",
-    authMiddleware,
-    topicController.getTopicByIdEdit
-  );
+router.post("/", authMiddleware, topicController.createTopic);
+router.get(
+  "/edit/topicEdit/:topicId",
+  authMiddleware,
+  topicController.getTopicByIdEdit
+);
 
   router.get("/", authMiddleware, topicController.getTopicTypeAsTreeData);
   router.post("/", authMiddleware, (req, res) => {
@@ -32,12 +32,12 @@ module.exports = function (io) {
     authMiddleware,
     topicController.getFavoritesByUserId
   );
-  router.post("/favorites", authMiddleware, (req, res) => {
-    topicController.AddFavoriteTopic(req, res, io);
-  });
-  router.delete("/favorites/:topicId", authMiddleware, (req, res) => {
-    topicController.UnFavoriteTopic(req, res, io);
-  });
+  router.post("/favorites", authMiddleware, topicController.AddFavoriteTopic);
+  router.delete(
+    "/favorites/:topicId",
+    authMiddleware,
+    topicController.UnFavoriteTopic
+  );
 
   router.get("/topics//alltopics", authMiddleware, topicController.getTopic);
 
@@ -61,7 +61,7 @@ module.exports = function (io) {
       const decodedTopicId = idDecoder(topicId);
 
       const ancestors = await topicController.getTopicAncestor(decodedTopicId);
-
+      console.log("anc", ancestors);
       res.json(ancestors);
     } catch (error) {
       console.error("Error fetching ancestors:", error);

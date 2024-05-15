@@ -3,7 +3,7 @@ const app = express();
 const httpServer = require("http").createServer(app); // Create HTTP server
 const io = require("socket.io")(httpServer, {
   cors: {
-    origin: process.env.BACK_END_URL,
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"],
   },
 });
@@ -61,6 +61,7 @@ app.get("/notifications", authMiddleware, async (req, res) => {
       read: false,
     });
 
+    console.log("nto", notifications);
     return res.status(200).json({ notifications, unReadNotificationCount });
   } catch (error) {
     console.error(error);
@@ -82,6 +83,7 @@ app.delete("/notifications", authMiddleware, async (req, res) => {
 app.put("/notifications", async (req, res) => {
   try {
     const { notificationId } = req.body;
+    console.log("anot", notificationId);
 
     const notifications = await notificationModel.updateOne(
       { _id: notificationId },
