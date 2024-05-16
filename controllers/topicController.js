@@ -3,7 +3,7 @@ const NoteModel = require("../models/note.js");
 const Usermodel = require("../models/user.js");
 const TeamModel = require("../models/team.js");
 const { v4: uuidv4 } = require("uuid");
-
+const { Types: { ObjectId } } = require('mongoose');
 const idDecoder = require("../iddecoder.js");
 
 const { merge } = require("../routers/teamRoute.js");
@@ -88,26 +88,28 @@ async function getFavoritesWithChildren(userId) {
     return myTeamsTopic;
   });
   const myTeamsTopic1 = await Promise.all(promises);
-  const myTeamsTopics = [];
-  const existingIds = [];
 
-  myTeamsTopic1.forEach((topics) => {
-    topics.forEach((topic) => {
-      if (!existingIds.includes(topic._id.toString())) {
-        existingIds.push(topic._id.toString());
-        myTeamsTopics.push(topic);
-      }
-    });
-  });
+  // const myTeamsTopics = [];
+  // const existingIds = [];
 
+  // myTeamsTopic1.forEach((topics) => {
+  //   topics.forEach((topic) => {
+  //     if (!existingIds.includes(topic._id.toString())) {
+  //       existingIds.push(topic._id.toString());
+  //       myTeamsTopics.push(topic);
+  //     }
+  //   });
+  // });
+
+  const myTeamsTopics = getUniqueTopics(myTeamsTopic1);
   const yourOwnTopics = await Topicmodel.find({ owner: userId });
 
   const userTopic = await Usermodel.findById(userId).populate({
     path: "favoriteTopic",
   });
 
-  const mergedTopics = [...myTopics, ...myTeamsTopics, ...yourOwnTopics];
-
+  const mergedTopics1 = [...myTopics, ...myTeamsTopics, ...yourOwnTopics];
+  const mergedTopics = getUniqueTopics(mergedTopics1);
   function mergeTopics(mergedTopics, favoriteTopics) {
     const newTopics = [];
 
@@ -352,9 +354,17 @@ module.exports.getTopicById = async (req, res) => {
     }
 
     const teamIds = topic.accessTeam.map((team) => team.toString());
+
+    const teamUsers = await TeamModel.find({ _id: { $in: teamIds } }, { members: 1 })
+      .populate("members", "_id") // Üyelerin sadece _id alanlarını getirir
+      .lean(); // Düz nesne olarak verileri alır
+
+    const allUserIds = teamUsers.flatMap((team) =>
+      team.members.map((member) => member._id.toString())
+    );
+
     const userTeams = await TeamModel.find({ members: userId });
     const userTeamIds = userTeams.map((team) => team._id.toString());
-
     const accessIds = new Set([...userTeamIds, userId]);
 
     const posts = topic.post.map((post) => {
@@ -375,17 +385,17 @@ module.exports.getTopicById = async (req, res) => {
     });
 
     const filteredPosts = posts.filter((post) => post.canEdit);
-
+    const editTeams = topic.editTeam.map((team) => team.toString());
     let editPermission =
-      topic.editTeam.includes(userId) ||
+      editTeams.some((teamId) => userTeamIds.includes(teamId)) ||
       topic.editUser.includes(userId) ||
       topic.owner.toString() === userId;
-
+      
     const userData = await this.getUniqueUserData([
       ...topic.accessUser,
       topic.owner,
+      ...allUserIds,
     ]);
-
     res.json({
       fullname: user.fullname,
       posts: filteredPosts,
@@ -460,12 +470,12 @@ module.exports.getTopicTypeAsTreeData = async (req, res) => {
       accessUser: userId.toString(),
     }).populate("accessUser");
     const teamTopics = await getTeamTopics(userId);
-    const uniqueTopics = getUniqueTopics(teamTopics);
+    
 
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
-    const mergedTopics = [...myTopics, ...uniqueTopics];
-
-    const treeData = JSON.stringify(convertToTree(mergedTopics), null, 2);
+    const mergedTopics = [...myTopics, ...teamTopics , ...yourOwnTopics];
+    const uniqueTopics = getUniqueTopics(mergedTopics);
+    const treeData = JSON.stringify(convertToTree(uniqueTopics), null, 2);
     const yourOwnTreeData = JSON.stringify(
       convertToTree(yourOwnTopics),
       null,
@@ -512,11 +522,12 @@ module.exports.getTopic = async (req, res) => {
     });
 
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
-    const mergedTopics = [...myTopics, ...myTeamsTopics];
+    const mergedTopics = [...myTopics, ...myTeamsTopics, ...yourOwnTopics];
+    const merged=getUniqueTopics(mergedTopics)
     //const editAuth=[...mergedTopics, ...yourOwnTopics];
 
     res.json({
-      myTeamsTopics: mergedTopics,
+      myTeamsTopics: merged,
       yourOwnTopics: yourOwnTopics,
     });
 
