@@ -469,66 +469,127 @@ module.exports.getAccessOfNote = async (req, res) => {
   try {
     const topic = await TopicModel.findOne({ post: { $in: [id] } });
     if (topic === null) {
-      allteams = await TeamModel.find({});
-      uniqueArray = await Usermodel.find({});
+      [allteams, uniqueArray] = await Promise.all([
+        TeamModel.find({}),
+        Usermodel.find({}),
+      ]);
       canEdit = true;
     } else {
       const post = await Notemodel.findById(id);
-      const accessTeam = topic.accessTeam.map((member) =>
-        member._id.toString()
-      );
-      const accessUser = topic.accessUser.map((member) =>
-        member._id.toString()
-      );
-      const promises = accessUser.map(async (item) => {
-        const members = await Usermodel.find({ _id: item }).select(
-          "_id fullname"
-        );
-        return members.map((member) => ({
-          _id: member._id.toString(),
-          fullname: member.fullname,
-        }));
-      });
 
-      const members = await Promise.all(promises);
+      // const accessUser = topic.accessUser.map((member) =>
+      //   member._id.toString()
+      // );
+      // const promises = accessUser.map(async (item) => {
+      //   const members = await Usermodel.find({ _id: item }).select(
+      //     "_id fullname"
+      //   );
+      //   return members.map((member) => ({
+      //     _id: member._id.toString(),
+      //     fullname: member.fullname,
+      //   }));
+      // });
 
-      const member = members.flat();
+      // const members = await Promise.all(promises);
 
-      const promises2 = accessTeam.map(async (item) => {
-        const members1 = await Usermodel.find({ team: item.toString() }).select(
-          "_id fullname"
-        );
-        return members1.map((member) => ({
-          _id: member._id.toString(),
-          fullname: member.fullname,
-        }));
-      });
+      // const member = members.flat();
+      /////////////////////////////////////
+      // const accessUserIds = topic.accessUser.map((member) => member._id);
 
-      const teamMembers = await Promise.all(promises2);
+      // const members = await Usermodel.find({ _id: { $in: accessUserIds } })
+      //   .select("_id fullname")
+      //   .lean();
 
-      const allMembers = teamMembers.flat();
+      // const member = members.map((member) => ({
+      //   _id: member._id.toString(),
+      //   fullname: member.fullname,
+      // }));
+      ////////////
+      // const accessTeam = topic.accessTeam.map((member) =>
+      //   member._id.toString()
+      // );
+      //       const promises2 = accessTeam.map(async (item) => {
+      //         const members1 = await Usermodel.find({ team: item.toString() }).select(
+      //           "_id fullname"
+      //         );
+      //         return members1.map((member) => ({
+      //           _id: member._id.toString(),
+      //           fullname: member.fullname,
+      //         }));
+      //       });
 
-      const promises3 = accessTeam.map(async (item) => {
-        const teams = await TeamModel.find({ _id: item.toString() }).select(
-          "_id teamName"
-        );
-        return teams.map((member) => ({
-          _id: member._id.toString(),
-          teamName: member.teamName,
-        }));
-      });
+      //       const teamMembers = await Promise.all(promises2);
 
-      const team = await Promise.all(promises3);
+      //       const allMembers = teamMembers.flat();
+      //////
+      // const accessTeamIds = topic.accessTeam.map((member) => member._id);
 
-      allteams = team.flat();
-      const allusers = [...allMembers, ...member];
+      // const teamMembers = await Usermodel.find({ team: { $in: accessTeamIds } })
+      //   .select("_id fullname")
+      //   .lean();
+
+      // const allMembers = teamMembers.map((member) => ({
+      //   _id: member._id.toString(),
+      //   fullname: member.fullname,
+      // }));
+      /////
+      // const promises3 = topic.accessTeam.map(async (item) => {
+      //   const teams = await TeamModel.find({ _id: item.toString() }).select(
+      //     "_id teamName"
+      //   );
+      //   return teams.map((member) => ({
+      //     _id: member._id.toString(),
+      //     teamName: member.teamName,
+      //   }));
+      // });
+
+      // const team = await Promise.all(promises3);
+
+      // allteams = team.flat();
+      /////
+      // const allteams = await TeamModel.find({ _id: { $in: accessTeamIds } })
+      // .select("_id teamName")
+      // .lean();
+      const accessUserIds = topic.accessUser.map((member) => member._id);
+      const accessTeamIds = topic.accessTeam.map((member) => member._id);
+
+      const [members, allMembers, allTeams] = await Promise.all([
+        Usermodel.find({ _id: { $in: accessUserIds } })
+          .select("_id fullname")
+          .lean(),
+        Usermodel.find({ team: { $in: accessTeamIds } })
+          .select("_id fullname")
+          .lean(),
+        TeamModel.find({ _id: { $in: accessTeamIds } })
+          .select("_id teamName")
+          .lean(),
+      ]);
+
+      // Kullanıcılar
+
+      const members1 = members.map((member) => ({
+        _id: member._id.toString(),
+        fullname: member.fullname,
+      }));
+
+      // Tüm takımlar
+      allteams = allTeams.map((member) => ({
+        _id: member._id.toString(),
+        teamName: member.teamName,
+      }));
+      
+      // Tüm üyeler
+      const allMembers1 = allMembers.map((member) => ({
+        _id: member._id.toString(),
+        fullname: member.fullname,
+      }));
+
+      const allusers = [...allMembers1, ...members1];
       const uniqueValues = {};
 
       allusers.forEach((item) => {
-        // Her değeri nesnede anahtar olarak kullanarak kontrol ediyoruz
-        // Eğer değer nesnede yoksa nesneye ekliyoruz
-        if (!uniqueValues[item._id.toString()]) {
-          uniqueValues[item._id.toString()] = item;
+        if (!uniqueValues[item._id]) {
+          uniqueValues[item._id] = item;
         }
       });
 
