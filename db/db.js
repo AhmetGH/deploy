@@ -1,20 +1,20 @@
 const mongoose = require("mongoose");
 const { Client } = require("@elastic/elasticsearch");
 //const topicModel = require("../models/topic");
+const indexInfo = "bilgi";
 
 const connection =
   "mongodb+srv://ahmetgocmen07:Cfk9tY27nvBaFzxS@ahmet.shuruci.mongodb.net/?retryWrites=true&w=majority&appName=ahmet";
 
 const esClient = new Client({
-  node: "https://6f91b4a351d143e59e1f34bbb8e2c557.europe-west3.gcp.cloud.es.io:443",
+  node: "https://0e575aac6ce54b75a9275939d59050bd.europe-west3.gcp.cloud.es.io:443",
   auth: {
     apiKey: {
-      id: "0ostL48BKT31eWBTT2iz", // Replace with your actual API key ID
-      api_key: "48qJr4a7QHuPpPmS5sVqIA", // Replace with your actual API key secret
+      id: "AN2tpY8B3W_8TmIZ_XVl", // Replace with your actual API key ID
+      api_key: "4JJI6eUzTBe2U1d0N6rOmw", // Replace with your actual API key secret
     },
   },
 });
-
 mongoose
   .connect(connection)
   .then(async () => {
@@ -53,7 +53,7 @@ async function syncTeamToElasticsearch(change) {
   try {
     if (operationType === "insert") {
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           teamName: fullDocument.teamName,
@@ -71,7 +71,7 @@ async function syncTeamToElasticsearch(change) {
       const { teamName, teamDescription, members } = updatedFields;
 
       await esClient.update({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           doc: {
@@ -84,7 +84,7 @@ async function syncTeamToElasticsearch(change) {
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: indexInfo,
           id: documentKey._id.toHexString(),
         });
       } catch (error) {
@@ -115,7 +115,7 @@ async function syncNoteToElasticsearch(change) {
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           noteName: fullDocument.noteName,
@@ -142,7 +142,7 @@ async function syncNoteToElasticsearch(change) {
       const cleanDescription = description?.replace(/<[^>]+>/g, "");
 
       await esClient.update({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           doc: {
@@ -157,7 +157,7 @@ async function syncNoteToElasticsearch(change) {
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: indexInfo,
           id: documentKey._id.toHexString(),
         });
       } catch (error) {
@@ -183,7 +183,7 @@ async function syncTopicToElasticsearch(change) {
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           topicName: fullDocument.topicName,
@@ -204,7 +204,7 @@ async function syncTopicToElasticsearch(change) {
       let { topicName, parent, owner, accessTeam, accessUser } = updatedFields;
 
       await esClient.update({
-        index: "bilgi",
+        index: indexInfo,
         id: documentKey._id.toHexString(),
         body: {
           doc: {
@@ -219,7 +219,7 @@ async function syncTopicToElasticsearch(change) {
     } else if (operationType === "delete") {
       try {
         await esClient.delete({
-          index: "bilgi",
+          index: indexInfo,
           id: documentKey._id.toHexString(),
         });
       } catch (error) {

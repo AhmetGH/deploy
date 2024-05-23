@@ -92,6 +92,9 @@ app.put("/notifications", async (req, res) => {
 
     const notifications = await notificationModel.updateOne(
       { _id: notificationId },
+      { teamName: req.body.teamName },
+      { fullname: req.body.fullname },
+      { type: req.body.type },
       { $set: { read: true } }
     );
     return res.status(200).json({ notifications });

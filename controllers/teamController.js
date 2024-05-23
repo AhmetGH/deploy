@@ -325,7 +325,6 @@ module.exports.setTeamOnlyMembers = async (req, res) => {
 
     const teamMembers = await Promise.all(promises);
 
-
     const allMembers = teamMembers.flat(); // Tüm üyeleri tek bir diziye topla
 
     const usersNotInTeamOnlyMember = await Usermodel.find({
@@ -395,12 +394,13 @@ module.exports.createTeamMember = async (req, res, io) => {
 
     team.members.push(...userIds);
 
-   
-
     userIds.forEach(async (userId) => {
       const notification = new notificationModel({
         userId: userId,
         message: `${userName.fullname} , sizi ${team.teamName} adlı takıma ekledi.`,
+        fullname: userName.fullname,
+        teamName: team.teamName,
+        type: "team",
         url: `/teamMates/${team.teamName}`,
       });
       await notification.save();

@@ -4,12 +4,14 @@ const Team = require("../models/team");
 const Topic = require("../models/topic");
 const userModel = require("../models/user");
 
+const indexInfo = "bilgi";
+
 const esClient = new Client({
-  node: "https://6f91b4a351d143e59e1f34bbb8e2c557.europe-west3.gcp.cloud.es.io:443",
+  node: "https://0e575aac6ce54b75a9275939d59050bd.europe-west3.gcp.cloud.es.io:443",
   auth: {
     apiKey: {
-      id: "0ostL48BKT31eWBTT2iz", // Replace with your actual API key ID
-      api_key: "48qJr4a7QHuPpPmS5sVqIA", // Replace with your actual API key secret
+      id: "AN2tpY8B3W_8TmIZ_XVl", // Replace with your actual API key ID
+      api_key: "4JJI6eUzTBe2U1d0N6rOmw", // Replace with your actual API key secret
     },
   },
 });
@@ -18,7 +20,7 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
   try {
     await esClient.indices.create(
       {
-        index: "bilgi",
+        index: indexInfo,
         body: {
           mappings: {
             properties: {
@@ -75,15 +77,15 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
       const encodedid = Buffer.from(jsonString).toString("base64");
       const cleanDescription = note.description.replace(/<[^>]+>/g, "");
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: note._id.toHexString(),
         body: {
           noteName: note.noteName,
           noteDescription: cleanDescription,
           noteId: encodedid,
-          noteAccessUser: note.accessUser.map((user) => user.toString()),
-          noteAccessTeam: note.accessTeam.map((team) => team.toString()),
-          members: note.members.map((user) => user.toString()),
+          noteAccessUser: note.accessUser?.map((user) => user.toString()),
+          noteAccessTeam: note.accessTeam?.map((team) => team.toString()),
+          members: note.members?.map((user) => user.toString()),
         },
       });
     }
@@ -94,15 +96,15 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
       const encodedid = Buffer.from(jsonString).toString("base64");
 
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: topic._id.toHexString(),
         body: {
           topicName: topic.topicName,
           parentName: topic.parent,
           topicId: encodedid,
           owner: topic.owner.toString(),
-          accessTeam: topic.accessTeam.map((team) => team.toString()),
-          accessUser: topic.accessUser.map((user) => user.toString()),
+          accessTeam: topic.accessTeam?.map((team) => team.toString()),
+          accessUser: topic.accessUser?.map((user) => user.toString()),
         },
       });
     }
@@ -110,12 +112,12 @@ module.exports.transferDataToElasticSearch = async (req, res) => {
     const teams = await Team.find().lean();
     for (const team of teams) {
       await esClient.index({
-        index: "bilgi",
+        index: indexInfo,
         id: team._id.toHexString(),
         body: {
           teamName: team.teamName,
           teamDescription: team.teamDescription,
-          teamMembers: team.members.map((member) => member.toString()),
+          teamMembers: team.members?.map((member) => member.toString()),
         },
       });
     }
@@ -131,13 +133,12 @@ module.exports.searchSuggestions = async (req, res) => {
     const userId = req.user.id;
     const { query } = req.query;
 
-
     const user = await userModel.findById(userId).populate("team");
 
     const userTeams = user.team.map((team) => team._id);
 
     const result = await esClient.search({
-      index: "bilgi",
+      index: indexInfo,
       body: {
         query: {
           bool: {

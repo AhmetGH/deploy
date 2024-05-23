@@ -4,39 +4,59 @@ const TeamModel = require("../models/team.js");
 const idDecoder = require("../iddecoder.js");
 const TopicModel = require("../models/topic.js");
 const notificationModel = require("../models/notification.js");
-const path = require("path");
-const { isUtf8 } = require("buffer");
-const io = require("socket.io")();
 
 module.exports.getSingleNoteById = async (req, res) => {
   const noteId = idDecoder(req.params.noteId);
-  try {
-    const theNote = await Notemodel.findById(noteId).populate({
-      path: "owner",
-      model: "User",
-      select: "fullname",
-    });
+  const userId = req.user.id;
 
-    const jsonString = JSON.stringify(theNote._id);
-    const encodedid = btoa(jsonString).toString("base64");
+  try {
+    const [theNote, user] = await Promise.all([
+      Notemodel.findById(noteId).populate({
+        path: "owner",
+        model: "User",
+        select: "fullname",
+      }),
+      Usermodel.findById(userId),
+    ]);
+
+    if (!theNote || !user) {
+      return res.status(404).json({ error: "Note or user not found" });
+    }
+
+    const [readingTime, readingDate] = calculateReadingTime(
+      theNote.readingTime
+    );
+    const isFavorite = user.favoritePosts.includes(noteId);
+
+    const canEdit =
+      theNote.editUser.includes(userId) ||
+      theNote.editTeam.includes(userId) ||
+      theNote.owner._id.toString() === userId;
+
     const [operationTime, operationDate] = calculateTimeAgo(
       theNote.operationDate
     );
+
+    const jsonString = JSON.stringify(theNote._id);
+    const encodedid = btoa(jsonString).toString("base64");
+
     return res.status(200).json({
       note: {
         noteName: theNote.noteName,
-        noteId: encodedid,
+        noteId: encodedid, // Kullanıcıya not ID'sini ham halde göndermek daha iyi olabilir
         noteDetails: theNote.description,
-        // accessTeam: note.accessTeam,
-        // accessUser: note.accessUser,
         fullName: theNote.owner.fullname,
         owner: theNote.owner._id,
-        operationTime: operationTime,
-        operationDate: operationDate,
+        operationTime,
+        operationDate,
+        readingTime,
+        readingDate,
+        canEdit,
+        isFavorite,
       },
     });
   } catch (err) {
-    return res.status(400).json(error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -61,10 +81,16 @@ const calculateReadingTime = (seconds) => {
     return [seconds, seconds !== 1 ? "Seconds" : "Second"];
   }
 };
+
 module.exports.getNotesToHome = async (req, res) => {
   const userId = req.user.id;
+
   try {
-    const myTeam = await TeamModel.find({ members: userId });
+    const [myTeam, user] = await Promise.all([
+      TeamModel.find({ members: userId }),
+      Usermodel.findById(userId),
+    ]);
+
     const myTeamIds = myTeam.map((team) => team._id.toString());
     const accessibleIds = [userId, ...myTeamIds];
 
@@ -84,6 +110,7 @@ module.exports.getNotesToHome = async (req, res) => {
         note.operationDate
       );
       const [readingTime, readingDate] = calculateReadingTime(note.readingTime);
+      const isFavorite = user.favoritePosts.includes(note._id);
       const canEdit =
         note.editUser.includes(userId) ||
         note.editTeam.some((team) => accessibleIds.includes(team.toString())) ||
@@ -95,17 +122,20 @@ module.exports.getNotesToHome = async (req, res) => {
         noteDetails: note.description,
         fullName: note.owner.fullname,
         owner: note.owner._id,
-        readingTime: readingTime,
-        readingDate: readingDate,
+        readingTime,
+        readingDate,
         operationTime,
         operationDate,
         canEdit,
+        isFavorite,
       };
     });
 
-    res.json({ allNotes: allNotesData });
+    res.status(200).json({ allNotes: allNotesData });
   } catch (error) {
-    res.status(400).json({ message: "Failed to retrieve notes", error });
+    res
+      .status(500)
+      .json({ message: "Failed to retrieve notes", error: error.message });
   }
 };
 
@@ -163,7 +193,7 @@ module.exports.getByIdFavorites = async (req, res) => {
     const user = await Usermodel.findById(userId)
       .populate({
         path: "favoritePosts",
-        select: "id noteName operationDate",
+        select: "id noteName operationDate owner",
         options: { sort: { operationDate: -1 } },
       })
       .select("fullname favoritePosts");
@@ -171,17 +201,21 @@ module.exports.getByIdFavorites = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const favoriteNotes = user.favoritePosts.map((note) => {
-      const [operationTime, operationDate] = calculateTimeAgo(
-        note.operationDate
-      );
-      return {
-        id: btoa(JSON.stringify(note._id)).toString("base64"),
-        noteName: note.noteName,
-        operationTime: operationTime,
-        operationDate: operationDate,
-      };
-    });
+
+    const favoriteNotes = user.favoritePosts
+      .filter((note) => note.owner.toString() === userId) // Şarta uymayan notları filtreler
+      .map((note) => {
+        const [operationTime, operationDate] = calculateTimeAgo(
+          note.operationDate
+        );
+        return {
+          id: btoa(JSON.stringify(note._id)).toString("base64"),
+          noteName: note.noteName,
+          operationTime: operationTime,
+          operationDate: operationDate,
+        };
+      });
+    console.log("favoriteNotes:", favoriteNotes);
 
     return res.status(200).json({ fullname: user.fullname, favoriteNotes });
   } catch (error) {
@@ -229,11 +263,9 @@ module.exports.publishNote = async (req, res, io) => {
       .populate("accessUser");
 
     if (!note) {
-      console.log("Note not found:", noteId);
       return res.status(404).json({ error: "cannot find note" });
     }
 
-    console.log("Note found, updating status.");
     note.isPublic = isPublished;
     note.accessTeam = req.body.accessTeam;
     note.accessUser = req.body.accessUser;
@@ -257,7 +289,9 @@ module.exports.publishNote = async (req, res, io) => {
           if (member._id.toString() !== myUserId) {
             const notification = new notificationModel({
               userId: member._id,
-              message: `${publisherName.fullname} has shared a note with ${teamWithMembers.teamName}.`,
+              fullname: publisherName.fullname,
+              teamName: teamWithMembers.teamName,
+              type: "note",
               url: "/home",
             });
 
@@ -272,7 +306,9 @@ module.exports.publishNote = async (req, res, io) => {
 
         const notification = new notificationModel({
           userId: userData._id,
-          message: `${publisherName.fullname} has shared a note with you.`,
+          fullname: publisherName.fullname,
+          teamName: "you",
+          type: "note",
           url: "/home",
         });
 
@@ -577,7 +613,7 @@ module.exports.getAccessOfNote = async (req, res) => {
         _id: member._id.toString(),
         teamName: member.teamName,
       }));
-      
+
       // Tüm üyeler
       const allMembers1 = allMembers.map((member) => ({
         _id: member._id.toString(),
@@ -593,7 +629,7 @@ module.exports.getAccessOfNote = async (req, res) => {
         }
       });
 
-      uniqueArray = Object.values(uniqueValues);
+      
       const myTeam = await TeamModel.find({ members: userId }).populate(
         "members"
       );

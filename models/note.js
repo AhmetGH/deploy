@@ -63,6 +63,12 @@ const noteSchema = new Schema({
   members: [{ type: Schema.Types.ObjectId, ref: "User", required: false }],
 });
 
+noteSchema.index({ owner: 1 });
+noteSchema.index({ noteName: 1 });
+noteSchema.index({ operationDate: -1 });
+noteSchema.index({ accessTeam: 1 });
+noteSchema.index({ accessUser: 1 });
+
 const Note = mongoose.model("Note", noteSchema);
 
 module.exports = Note;

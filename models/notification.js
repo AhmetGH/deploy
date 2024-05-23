@@ -13,6 +13,21 @@ const notificationSchema = new Schema({
     required: false,
     unique: false,
   },
+  fullname: {
+    type: String,
+    required: false,
+    unique: false,
+  },
+  teamName: {
+    type: String,
+    required: false,
+    unique: false,
+  },
+  type: {
+    type: String,
+    required: false,
+    unique: false,
+  },
   url: {
     type: String,
   },

@@ -3,7 +3,9 @@ const NoteModel = require("../models/note.js");
 const Usermodel = require("../models/user.js");
 const TeamModel = require("../models/team.js");
 const { v4: uuidv4 } = require("uuid");
-const { Types: { ObjectId } } = require('mongoose');
+const {
+  Types: { ObjectId },
+} = require("mongoose");
 const idDecoder = require("../iddecoder.js");
 
 const { merge } = require("../routers/teamRoute.js");
@@ -75,38 +77,19 @@ module.exports.getTopicByIdWithChildren = async (req, res) => {
 };
 
 async function getFavoritesWithChildren(userId) {
-  const myTeam = await TeamModel.find({ members: userId }).populate("members");
-  myTopics = await Topicmodel.find({
-    accessUser: userId.toString(),
-  }).populate("accessUser");
+  const [myTeam, myTopics, yourOwnTopics, userTopic] = await Promise.all([
+    TeamModel.find({ members: userId }).populate("members"),
+    Topicmodel.find({ accessUser: userId.toString() }).populate("accessUser"),
+    Topicmodel.find({ owner: userId }),
+    Usermodel.findById(userId).populate({ path: "favoriteTopic" }),
+  ]);
 
-  const promises = myTeam.map(async (item) => {
-    teamId = item._id;
-    const myTeamsTopic = await Topicmodel.find({
-      accessTeam: teamId.toString(),
-    }).populate("accessTeam");
-    return myTeamsTopic;
-  });
-  const myTeamsTopic1 = await Promise.all(promises);
-
-  // const myTeamsTopics = [];
-  // const existingIds = [];
-
-  // myTeamsTopic1.forEach((topics) => {
-  //   topics.forEach((topic) => {
-  //     if (!existingIds.includes(topic._id.toString())) {
-  //       existingIds.push(topic._id.toString());
-  //       myTeamsTopics.push(topic);
-  //     }
-  //   });
-  // });
+  const teamTopicPromises = myTeam.map((item) =>
+    Topicmodel.find({ accessTeam: item._id.toString() }).populate("accessTeam")
+  );
+  const myTeamsTopic1 = await Promise.all(teamTopicPromises);
 
   const myTeamsTopics = getUniqueTopics(myTeamsTopic1);
-  const yourOwnTopics = await Topicmodel.find({ owner: userId });
-
-  const userTopic = await Usermodel.findById(userId).populate({
-    path: "favoriteTopic",
-  });
 
   const mergedTopics1 = [...myTopics, ...myTeamsTopics, ...yourOwnTopics];
   const mergedTopics = getUniqueTopics(mergedTopics1);
@@ -180,7 +163,7 @@ module.exports.getFavoritesByUserId = async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const user = await Usermodel.findById(userId)
+    const userPromise = Usermodel.findById(userId)
       .populate({
         path: "favoritePosts",
         select: "id noteName",
@@ -188,11 +171,15 @@ module.exports.getFavoritesByUserId = async (req, res) => {
       })
       .select("favoritePosts");
 
+    const [user, favoritesWithChildren] = await Promise.all([
+      userPromise,
+      getFavoritesWithChildren(userId),
+    ]);
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const favoritesWithChildren = await getFavoritesWithChildren(userId);
     const tree = convertToTree(favoritesWithChildren);
 
     const favoriteNotes = user.favoritePosts.map((note) => ({
@@ -238,7 +225,7 @@ module.exports.createTopic = async (req, res, io) => {
     });
     const savedTopic = await newTopic.save();
     io.emit("createTopic");
-
+  
     res.status(201).json({ id: savedTopic._id });
   } catch (error) {
     res.status(500).json(error);
@@ -304,30 +291,69 @@ module.exports.mainTopicCheck = async (req, res) => {
   try {
     const topic = await Topicmodel.findById(underId).populate("accessTeam");
     const owner = topic.owner.toString();
-    const teamIds = await Promise.all(
-      topic.accessTeam.map(async (team) => {
-        const teamk = await TeamModel.findById(team);
-        return {
-          _id: teamk._id.toString(),
-          teamName: teamk.teamName, // Use 'teamk' here instead of 'team'
-        };
-      })
-    );
+    const accessUserIds = topic.accessUser.map((member) => member._id);
+    const accessTeamIds = topic.accessTeam.map((member) => member._id);
+    const [members, allMembers, allTeams] = await Promise.all([
+      Usermodel.find({ _id: { $in: accessUserIds } })
+        .select("_id fullname")
+        .lean(),
+      Usermodel.find({ team: { $in: accessTeamIds } })
+        .select("_id fullname")
+        .lean(),
+      TeamModel.find({ _id: { $in: accessTeamIds } })
+        .select("_id teamName")
+        .lean(),
+    ]);
 
-    const UserIds = await Promise.all(
-      topic.accessUser.map(async (user) => {
-        const userk = await Usermodel.findById(user);
+    // const teamIds = await Promise.all(
+    //   topic.accessTeam.map(async (team) => {
+    //     const teamk = await TeamModel.findById(team);
+    //     return {
+    //       _id: teamk._id.toString(),
+    //       teamName: teamk.teamName, // Use 'teamk' here instead of 'team'
+    //     };
+    //   })
+    // );
 
-        return {
-          _id: userk._id.toString(),
-          fullname: userk.fullname,
-        };
-      })
-    );
+    // const UserIds = await Promise.all(
+    //   topic.accessUser.map(async (user) => {
+    //     const userk = await Usermodel.findById(user);
 
+    //     return {
+    //       _id: userk._id.toString(),
+    //       fullname: userk.fullname,
+    //     };
+    //   })
+    // );
+    const members1 = members.map((member) => ({
+      _id: member._id.toString(),
+      fullname: member.fullname,
+    }));
+
+    // Tüm takımlar
+    const allteams = allTeams.map((member) => ({
+      _id: member._id.toString(),
+      teamName: member.teamName,
+    }));
+
+    // Tüm üyeler
+    const allMembers1 = allMembers.map((member) => ({
+      _id: member._id.toString(),
+      fullname: member.fullname,
+    }));
+
+    const allusers = [...allMembers1, ...members1];
+    const uniqueValues = {};
+
+    allusers.forEach((item) => {
+      if (!uniqueValues[item._id]) {
+        uniqueValues[item._id] = item;
+      }
+    });
+    uniqueArray = Object.values(uniqueValues);
     return res.json({
-      userIds: UserIds,
-      teamIds: teamIds,
+      userIds: uniqueArray,
+      teamIds: allteams,
     });
   } catch (error) {
     return res.status(400).json(error);
@@ -355,15 +381,17 @@ module.exports.getTopicById = async (req, res) => {
 
     const teamIds = topic.accessTeam.map((team) => team.toString());
 
-    const teamUsers = await TeamModel.find({ _id: { $in: teamIds } }, { members: 1 })
-      .populate("members", "_id") // Üyelerin sadece _id alanlarını getirir
-      .lean(); // Düz nesne olarak verileri alır
+    const [teamUsers, userTeams] = await Promise.all([
+      TeamModel.find({ _id: { $in: teamIds } }, { members: 1 })
+        .populate("members", "_id")
+        .lean(),
+      TeamModel.find({ members: userId }),
+    ]);
 
     const allUserIds = teamUsers.flatMap((team) =>
       team.members.map((member) => member._id.toString())
     );
 
-    const userTeams = await TeamModel.find({ members: userId });
     const userTeamIds = userTeams.map((team) => team._id.toString());
     const accessIds = new Set([...userTeamIds, userId]);
 
@@ -386,16 +414,17 @@ module.exports.getTopicById = async (req, res) => {
 
     const filteredPosts = posts.filter((post) => post.canEdit);
     const editTeams = topic.editTeam.map((team) => team.toString());
-    let editPermission =
+    const editPermission =
       editTeams.some((teamId) => userTeamIds.includes(teamId)) ||
       topic.editUser.includes(userId) ||
       topic.owner.toString() === userId;
-      
+
     const userData = await this.getUniqueUserData([
       ...topic.accessUser,
       topic.owner,
       ...allUserIds,
     ]);
+   
     res.json({
       fullname: user.fullname,
       posts: filteredPosts,
@@ -470,10 +499,9 @@ module.exports.getTopicTypeAsTreeData = async (req, res) => {
       accessUser: userId.toString(),
     }).populate("accessUser");
     const teamTopics = await getTeamTopics(userId);
-    
 
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
-    const mergedTopics = [...myTopics, ...teamTopics , ...yourOwnTopics];
+    const mergedTopics = [...myTopics, ...teamTopics, ...yourOwnTopics];
     const uniqueTopics = getUniqueTopics(mergedTopics);
     const treeData = JSON.stringify(convertToTree(uniqueTopics), null, 2);
     const yourOwnTreeData = JSON.stringify(
@@ -523,7 +551,7 @@ module.exports.getTopic = async (req, res) => {
 
     const yourOwnTopics = await Topicmodel.find({ owner: userId });
     const mergedTopics = [...myTopics, ...myTeamsTopics, ...yourOwnTopics];
-    const merged=getUniqueTopics(mergedTopics)
+    const merged = getUniqueTopics(mergedTopics);
     //const editAuth=[...mergedTopics, ...yourOwnTopics];
 
     res.json({
